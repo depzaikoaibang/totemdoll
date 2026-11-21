@@ -4,7 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.SubmitNodeCollector;
-import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.special.SpecialModelRenderer;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.resources.Identifier;
@@ -45,12 +45,12 @@ public final class DollSpecialRenderer implements SpecialModelRenderer<Boolean> 
         final float s = 1f / 16f;
         ps.scale(s, s, -s);
 
-        collector.submitCustomGeometry(ps, RenderType.entityCutoutNoCull(CUP), (pose, vc) ->
+        collector.submitCustomGeometry(ps, RenderTypes.entityCutoutNoCull(CUP), (pose, vc) ->
             cup.render(anim.cup(), (x, y, z, u, v, nx, ny, nz) ->
                 vc.addVertex(pose, x, y, z).setColor(255, 255, 255, 255).setUv(u, v)
                   .setOverlay(overlay).setLight(light).setNormal(pose, nx, ny, nz)));
 
-        collector.submitCustomGeometry(ps, RenderType.entityCutoutNoCull(SKIN), (pose, vc) ->
+        collector.submitCustomGeometry(ps, RenderTypes.entityCutoutNoCull(SKIN), (pose, vc) ->
             doll.render(anim.doll(), (x, y, z, u, v, nx, ny, nz) ->
                 vc.addVertex(pose, x, y, z).setColor(255, 255, 255, 255).setUv(u, v)
                   .setOverlay(overlay).setLight(light).setNormal(pose, nx, ny, nz)));
