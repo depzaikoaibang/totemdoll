@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "totemdoll",
+  "version": "1.0.0",
+  "name": "Totem Doll",
+  "description": "Totem of Undying becomes a little 3D doll in a cup/bucket with jump and fall animations.",
+  "environment": "client",
+  "icon": "assets/totemdoll/icon.png",
+  "entrypoints": { "client": ["dev.totemdoll.client.TotemDollClient"] },
+  "depends": { "fabricloader": ">=0.17.0", "minecraft": "~1.21.11", "java": ">=21", "fabric-api": "*" }
+}

@@ -1,0 +1,7 @@
+{
+  "model": {
+    "type": "minecraft:special",
+    "base": "totemdoll:item/totem_doll",
+    "model": { "type": "totemdoll:totem_doll" }
+  }
+}
