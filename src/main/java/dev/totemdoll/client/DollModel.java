@@ -36,6 +36,7 @@ public final class DollModel {
     private static final class Cube {
         float x0, y0, z0, x1, y1, z1;      // inflated extents
         float inflate;
+        boolean invertY;
         float[] pivot, rot;
         // per face: {u0, v0, u1, v1} in pixels, order NORTH,SOUTH,EAST,WEST,UP,DOWN
         float[][] uv = new float[6][];
@@ -110,8 +111,16 @@ public final class DollModel {
         float[] size = floats(o.getAsJsonArray("size"));
         float inf = o.has("inflate") ? o.get("inflate").getAsFloat() : 0f;
         c.inflate = inf;
-        c.x0 = origin[0] - inf; c.y0 = origin[1] - inf; c.z0 = origin[2] - inf;
-        c.x1 = origin[0] + size[0] + inf; c.y1 = origin[1] + size[1] + inf; c.z1 = origin[2] + size[2] + inf;
+        c.invertY = size[1] < 0f;
+        float endX = origin[0] + size[0];
+        float endY = origin[1] + size[1];
+        float endZ = origin[2] + size[2];
+        c.x0 = Math.min(origin[0], endX) - inf;
+        c.y0 = Math.min(origin[1], endY) - inf;
+        c.z0 = Math.min(origin[2], endZ) - inf;
+        c.x1 = Math.max(origin[0], endX) + inf;
+        c.y1 = Math.max(origin[1], endY) + inf;
+        c.z1 = Math.max(origin[2], endZ) + inf;
         if (o.has("pivot")) c.pivot = floats(o.getAsJsonArray("pivot"));
         if (o.has("rotation")) c.rot = floats(o.getAsJsonArray("rotation"));
         JsonElement uv = o.get("uv");
@@ -126,7 +135,7 @@ public final class DollModel {
             }
         } else if (uv != null && uv.isJsonArray()) {          // classic box UV
             float[] p = floats(uv.getAsJsonArray());
-            float sx = size[0], sy = size[1], sz = size[2];
+            float sx = Math.abs(size[0]), sy = Math.abs(size[1]), sz = Math.abs(size[2]);
             c.uv[0] = new float[]{p[0] + sz, p[1] + sz, p[0] + sz + sx, p[1] + sz + sy};
             c.uv[1] = new float[]{p[0] + sz + sx + sz, p[1] + sz, p[0] + sz + sx + sz + sx, p[1] + sz + sy};
             c.uv[2] = new float[]{p[0], p[1] + sz, p[0] + sz, p[1] + sz + sy};
@@ -200,7 +209,8 @@ public final class DollModel {
             if (uv == null) continue;
             float u0 = uv[0] / texW, v0 = uv[1] / texH, u1 = uv[2] / texW, v1 = uv[3] / texH;
             float[][] uvs = {{u0, v0}, {u1, v0}, {u1, v1}, {u0, v1}};
-            float[] n = dir(m, NORMALS[f]);
+            float[] baseN = NORMALS[f];
+            float[] n = dir(m, c.invertY ? new float[]{-baseN[0], -baseN[1], -baseN[2]} : baseN);
             for (int i = 0; i < 4; i++) {
                 float[] p = pos(m, corners[f][i]);
                 sink.vertex(p[0], p[1], p[2], uvs[i][0], uvs[i][1], n[0], n[1], n[2]);
@@ -261,9 +271,9 @@ public final class DollModel {
                     out.add(quad(otl, otr, obr, obl, ul, vt, ur, vt, ur, vb, ul, vb, n));
                     float uc = (tx + 0.5f) / texW, vc = (ty + 0.5f) / texH;
                     if (i == 0 || !op[i - 1][j]) out.add(side(otl, tl, bl, obl, uc, vc, sub(tl, tr)));
-                    if (i == tw - 1 || !op[i + 1][j]) out.add(side(otr, tr, br, obr, uc, vc, sub(tr, tl)));
+                    if (i == tw - 1 || !op[i + 1][j]) out.add(side(otr, obr, br, tr, uc, vc, sub(tr, tl)));
                     if (j == 0 || !op[i][j - 1]) out.add(side(otl, otr, tr, tl, uc, vc, sub(tl, bl)));
-                    if (j == th - 1 || !op[i][j + 1]) out.add(side(obl, obr, br, bl, uc, vc, sub(bl, tl)));
+                    if (j == th - 1 || !op[i][j + 1]) out.add(side(obl, bl, br, obr, uc, vc, sub(bl, tl)));
                 }
             }
         }
