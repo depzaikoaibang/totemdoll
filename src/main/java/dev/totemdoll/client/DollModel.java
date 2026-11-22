@@ -14,7 +14,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Minimal Bedrock .geo.json loader + quad emitter. No Minecraft classes, so it is easy to test. */
+/**
+ * Minimal Bedrock .geo.json loader + quad emitter. No Minecraft classes, so it is easy to test.
+ * Supports an optional "3D skin layer": cubes with inflate > 0 (the outer skin layer) are replaced by
+ * one small extruded voxel per opaque texel, like the 3D Skin Layers mod.
+ */
 public final class DollModel {
 
     /** Receives one vertex. Positions are in model pixels (1/16 block), already posed. */
@@ -22,16 +26,20 @@ public final class DollModel {
         void vertex(float x, float y, float z, float u, float v, float nx, float ny, float nz);
     }
 
-    /** Per-bone animation offsets (pixels / degrees), added on top of the model pose. */
+    /** Per-bone animation offsets (pixels / degrees / scale), applied on top of the model pose. */
     public static final class BoneAnim {
         public float tx, ty, tz, rx, ry, rz;
+        public float sx = 1f, sy = 1f, sz = 1f;
+        public boolean hidden;
     }
 
     private static final class Cube {
-        float x0, y0, z0, x1, y1, z1;
+        float x0, y0, z0, x1, y1, z1;      // inflated extents
+        float inflate;
         float[] pivot, rot;
         // per face: {u0, v0, u1, v1} in pixels, order NORTH,SOUTH,EAST,WEST,UP,DOWN
         float[][] uv = new float[6][];
+        List<float[]> voxels;              // lazily built: 23 floats per quad (4 x xyzuv + normal)
     }
 
     private static final class Bone {
@@ -42,12 +50,19 @@ public final class DollModel {
     }
 
     private static final String[] FACES = {"north", "south", "east", "west", "up", "down"};
+    private static final float VOXEL_DEPTH = 0.5f;
 
     private final Map<String, Bone> bones = new LinkedHashMap<>();
     private final List<Bone> roots = new ArrayList<>();
     private float texW = 64, texH = 64;
+    private PngMask mask;
 
     public static DollModel load(String resourcePath) {
+        return load(resourcePath, null);
+    }
+
+    /** @param maskPath classpath PNG whose alpha decides which texels of the outer layer become voxels (or null) */
+    public static DollModel load(String resourcePath, String maskPath) {
         try (InputStream in = DollModel.class.getResourceAsStream(resourcePath)) {
             if (in == null) throw new IllegalStateException("Missing model " + resourcePath);
             JsonObject root = JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
@@ -70,6 +85,13 @@ public final class DollModel {
                 Bone p = b.parent == null ? null : m.bones.get(b.parent);
                 if (p == null) m.roots.add(b); else p.children.add(b);
             }
+            if (maskPath != null) {
+                try (InputStream mi = DollModel.class.getResourceAsStream(maskPath)) {
+                    if (mi != null) m.mask = PngMask.load(mi);
+                } catch (Exception ignored) {
+                    m.mask = null;               // fall back to the plain inflated layer
+                }
+            }
             return m;
         } catch (Exception e) {
             throw new RuntimeException("Failed to load " + resourcePath, e);
@@ -87,6 +109,7 @@ public final class DollModel {
         float[] origin = floats(o.getAsJsonArray("origin"));
         float[] size = floats(o.getAsJsonArray("size"));
         float inf = o.has("inflate") ? o.get("inflate").getAsFloat() : 0f;
+        c.inflate = inf;
         c.x0 = origin[0] - inf; c.y0 = origin[1] - inf; c.z0 = origin[2] - inf;
         c.x1 = origin[0] + size[0] + inf; c.y1 = origin[1] + size[1] + inf; c.z1 = origin[2] + size[2] + inf;
         if (o.has("pivot")) c.pivot = floats(o.getAsJsonArray("pivot"));
@@ -116,20 +139,31 @@ public final class DollModel {
 
     public boolean hasBone(String n) { return bones.containsKey(n); }
 
+    /** Opacity mask of the skin texture, used by the 3D skin layer. */
+    public void setMask(PngMask mask) { this.mask = mask; }
+
     // ---------------------------------------------------------------- rendering
 
     public void render(Map<String, BoneAnim> anims, Sink sink) {
-        for (Bone b : roots) renderBone(b, identity(), anims == null ? new HashMap<>() : anims, sink);
+        render(anims, false, sink);
     }
 
-    private void renderBone(Bone b, float[] parent, Map<String, BoneAnim> anims, Sink sink) {
+    public void render(Map<String, BoneAnim> anims, boolean layer3d, Sink sink) {
+        boolean voxel = layer3d && mask != null;
+        for (Bone b : roots) renderBone(b, identity(), anims == null ? new HashMap<>() : anims, voxel, sink);
+    }
+
+    private void renderBone(Bone b, float[] parent, Map<String, BoneAnim> anims, boolean voxel, Sink sink) {
         BoneAnim a = anims.get(b.name);
+        if (a != null && a.hidden) return;
         float[] m = parent.clone();
         float px = b.pivot[0], py = b.pivot[1], pz = b.pivot[2];
         float tx = 0, ty = 0, tz = 0, rx = b.rot[0], ry = b.rot[1], rz = b.rot[2];
-        if (a != null) { tx = a.tx; ty = a.ty; tz = a.tz; rx += a.rx; ry += a.ry; rz += a.rz; }
+        float sx = 1, sy = 1, sz = 1;
+        if (a != null) { tx = a.tx; ty = a.ty; tz = a.tz; rx += a.rx; ry += a.ry; rz += a.rz; sx = a.sx; sy = a.sy; sz = a.sz; }
         m = mul(m, translation(px + tx, py + ty, pz + tz));
         m = mul(m, rotationZYX(rx, ry, rz));
+        if (sx != 1f || sy != 1f || sz != 1f) m = mul(m, scaling(sx, sy, sz));
         m = mul(m, translation(-px, -py, -pz));
         for (Cube c : b.cubes) {
             float[] cm = m;
@@ -139,15 +173,15 @@ public final class DollModel {
                 cm = mul(cm, rotationZYX(c.rot[0], c.rot[1], c.rot[2]));
                 cm = mul(cm, translation(-cp[0], -cp[1], -cp[2]));
             }
-            emitCube(c, cm, sink);
+            if (voxel && c.inflate > 0f) emitVoxels(c, cm, sink);
+            else emitCube(c, cm, sink);
         }
-        for (Bone ch : b.children) renderBone(ch, m, anims, sink);
+        for (Bone ch : b.children) renderBone(ch, m, anims, voxel, sink);
     }
 
-    private void emitCube(Cube c, float[] m, Sink sink) {
-        float x0 = c.x0, y0 = c.y0, z0 = c.z0, x1 = c.x1, y1 = c.y1, z1 = c.z1;
-        // corners per face seen from outside: top-left, top-right, bottom-right, bottom-left; plus outward normal
-        float[][][] corners = {
+    /** Corner order per face seen from outside: top-left, top-right, bottom-right, bottom-left. */
+    private static float[][][] faceCorners(float x0, float y0, float z0, float x1, float y1, float z1) {
+        return new float[][][]{
             /*north*/ {{x1, y1, z0}, {x0, y1, z0}, {x0, y0, z0}, {x1, y0, z0}},
             /*south*/ {{x0, y1, z1}, {x1, y1, z1}, {x1, y0, z1}, {x0, y0, z1}},
             /*east */ {{x1, y1, z1}, {x1, y1, z0}, {x1, y0, z0}, {x1, y0, z1}},
@@ -155,13 +189,18 @@ public final class DollModel {
             /*up   */ {{x0, y1, z0}, {x1, y1, z0}, {x1, y1, z1}, {x0, y1, z1}},
             /*down */ {{x0, y0, z1}, {x1, y0, z1}, {x1, y0, z0}, {x0, y0, z0}},
         };
-        float[][] normals = {{0, 0, -1}, {0, 0, 1}, {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}};
+    }
+
+    private static final float[][] NORMALS = {{0, 0, -1}, {0, 0, 1}, {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}};
+
+    private void emitCube(Cube c, float[] m, Sink sink) {
+        float[][][] corners = faceCorners(c.x0, c.y0, c.z0, c.x1, c.y1, c.z1);
         for (int f = 0; f < 6; f++) {
             float[] uv = c.uv[f];
             if (uv == null) continue;
             float u0 = uv[0] / texW, v0 = uv[1] / texH, u1 = uv[2] / texW, v1 = uv[3] / texH;
             float[][] uvs = {{u0, v0}, {u1, v0}, {u1, v1}, {u0, v1}};
-            float[] n = dir(m, normals[f]);
+            float[] n = dir(m, NORMALS[f]);
             for (int i = 0; i < 4; i++) {
                 float[] p = pos(m, corners[f][i]);
                 sink.vertex(p[0], p[1], p[2], uvs[i][0], uvs[i][1], n[0], n[1], n[2]);
@@ -169,10 +208,111 @@ public final class DollModel {
         }
     }
 
+    // ---------------------------------------------------------------- 3D skin layer
+
+    private void emitVoxels(Cube c, float[] m, Sink sink) {
+        if (c.voxels == null) c.voxels = buildVoxels(c);
+        for (float[] q : c.voxels) {
+            float[] n = dir(m, new float[]{q[20], q[21], q[22]});
+            for (int i = 0; i < 4; i++) {
+                float[] p = pos(m, new float[]{q[i * 5], q[i * 5 + 1], q[i * 5 + 2]});
+                sink.vertex(p[0], p[1], p[2], q[i * 5 + 3], q[i * 5 + 4], n[0], n[1], n[2]);
+            }
+        }
+    }
+
+    private static void lerp3(float[] a, float[] b, float t, float[] out) {
+        for (int i = 0; i < 3; i++) out[i] = a[i] + (b[i] - a[i]) * t;
+    }
+
+    private List<float[]> buildVoxels(Cube c) {
+        List<float[]> out = new ArrayList<>();
+        float inf = c.inflate;
+        // start at the un-inflated surface, extrude outwards
+        float[][][] corners = faceCorners(c.x0 + inf, c.y0 + inf, c.z0 + inf, c.x1 - inf, c.y1 - inf, c.z1 - inf);
+        for (int f = 0; f < 6; f++) {
+            float[] uv = c.uv[f];
+            if (uv == null) continue;
+            int tw = Math.round(Math.abs(uv[2] - uv[0])), th = Math.round(Math.abs(uv[3] - uv[1]));
+            if (tw == 0 || th == 0) continue;
+            boolean flipU = uv[2] < uv[0], flipV = uv[3] < uv[1];
+            float[] n = NORMALS[f];
+            float[][] cr = corners[f];                    // TL, TR, BR, BL
+            boolean[][] op = new boolean[tw][th];
+            int[][] texX = new int[tw][th], texY = new int[tw][th];
+            for (int i = 0; i < tw; i++) {
+                for (int j = 0; j < th; j++) {
+                    int tx = flipU ? (int) uv[0] - i - 1 : (int) uv[0] + i;
+                    int ty = flipV ? (int) uv[1] - j - 1 : (int) uv[1] + j;
+                    texX[i][j] = tx;
+                    texY[i][j] = ty;
+                    op[i][j] = mask.opaque(tx, ty);
+                }
+            }
+            for (int i = 0; i < tw; i++) {
+                for (int j = 0; j < th; j++) {
+                    if (!op[i][j]) continue;
+                    float a0 = i / (float) tw, a1 = (i + 1) / (float) tw, b0 = j / (float) th, b1 = (j + 1) / (float) th;
+                    float[] tl = pt(cr, a0, b0), tr = pt(cr, a1, b0), br = pt(cr, a1, b1), bl = pt(cr, a0, b1);
+                    float[] otl = up(tl, n), otr = up(tr, n), obr = up(br, n), obl = up(bl, n);
+                    int tx = texX[i][j], ty = texY[i][j];
+                    float ul = (flipU ? tx + 1 : tx) / texW, ur = (flipU ? tx : tx + 1) / texW;
+                    float vt = (flipV ? ty + 1 : ty) / texH, vb = (flipV ? ty : ty + 1) / texH;
+                    out.add(quad(otl, otr, obr, obl, ul, vt, ur, vt, ur, vb, ul, vb, n));
+                    float uc = (tx + 0.5f) / texW, vc = (ty + 0.5f) / texH;
+                    if (i == 0 || !op[i - 1][j]) out.add(side(otl, tl, bl, obl, uc, vc, sub(tl, tr)));
+                    if (i == tw - 1 || !op[i + 1][j]) out.add(side(otr, tr, br, obr, uc, vc, sub(tr, tl)));
+                    if (j == 0 || !op[i][j - 1]) out.add(side(otl, otr, tr, tl, uc, vc, sub(tl, bl)));
+                    if (j == th - 1 || !op[i][j + 1]) out.add(side(obl, obr, br, bl, uc, vc, sub(bl, tl)));
+                }
+            }
+        }
+        return out;
+    }
+
+    private static float[] pt(float[][] cr, float a, float b) {
+        float[] top = new float[3], bot = new float[3], r = new float[3];
+        lerp3(cr[0], cr[1], a, top);
+        lerp3(cr[3], cr[2], a, bot);
+        lerp3(top, bot, b, r);
+        return r;
+    }
+
+    private static float[] up(float[] p, float[] n) {
+        return new float[]{p[0] + n[0] * VOXEL_DEPTH, p[1] + n[1] * VOXEL_DEPTH, p[2] + n[2] * VOXEL_DEPTH};
+    }
+
+    private static float[] sub(float[] a, float[] b) {
+        float x = a[0] - b[0], y = a[1] - b[1], z = a[2] - b[2];
+        float l = (float) Math.sqrt(x * x + y * y + z * z);
+        return l < 1e-6f ? new float[]{0, 1, 0} : new float[]{x / l, y / l, z / l};
+    }
+
+    private static float[] side(float[] a, float[] b, float[] c, float[] d, float u, float v, float[] n) {
+        return quad(a, b, c, d, u, v, u, v, u, v, u, v, n);
+    }
+
+    private static float[] quad(float[] a, float[] b, float[] c, float[] d,
+                                float ua, float va, float ub, float vb, float uc, float vc, float ud, float vd, float[] n) {
+        float[] q = new float[23];
+        float[][] ps = {a, b, c, d};
+        float[] us = {ua, ub, uc, ud}, vs = {va, vb, vc, vd};
+        for (int i = 0; i < 4; i++) {
+            q[i * 5] = ps[i][0]; q[i * 5 + 1] = ps[i][1]; q[i * 5 + 2] = ps[i][2];
+            q[i * 5 + 3] = us[i]; q[i * 5 + 4] = vs[i];
+        }
+        q[20] = n[0]; q[21] = n[1]; q[22] = n[2];
+        return q;
+    }
+
     // ---------------------------------------------------------------- tiny 4x4 math (column-major)
 
     private static float[] identity() {
         return new float[]{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+    }
+
+    private static float[] scaling(float x, float y, float z) {
+        float[] m = identity(); m[0] = x; m[5] = y; m[10] = z; return m;
     }
 
     private static float[] translation(float x, float y, float z) {

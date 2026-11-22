@@ -29,3 +29,39 @@ Gui log loi cho minh de sua.
 ## Ghi chu
 Model xo/coc/bup be va texture lay tu goi My Totem Doll (Ancxliy) -> chi dung ca nhan, khong dang lai.
 Code Java la code moi, khong chep tu mod goc.
+
+## Menu trong game
+Go lenh `/totemdoll` trong chat de mo menu:
+- Animations: bat/tat.
+- Model Selection: Bucket / Flower Bucket / Coffee / Matcha Cup.
+- Textures Player Arm Totem Model: Slim [ Alex ] / Wide [ Steve ].
+- 3D Skin Layer: bat/tat lop skin ngoai 3D (moi diem anh cua lop ngoai thanh mot khoi nho nho ra,
+  giong mod 3D Skin Layers). Mat na lay tu kenh alpha cua `skin.png` trong jar.
+- First Person Item Scale.
+- Adjust Doll Position...: Rotation XYZ, Offset XYZ, Scale cho tung goc nhin; panel mo di khi chinh.
+Cai dat luu o `config/totemdoll.json`.
+
+## Skin: Alex (slim) hoac Steve (normal)
+Trong menu chon `Slim [ Alex ]` hoac `Wide [ Steve ]`. Hai file skin:
+- `assets/totemdoll/textures/entity/alex.png`  (tay 3px)
+- `assets/totemdoll/textures/entity/steve.png` (tay 4px)
+Mac dinh ca hai la skin tuy chinh (steve.png la ban chuyen tay rong cua alex.png).
+Muon doi: tai skin tren namemc.com (PNG 64x64), doi ten thanh alex.png hoac steve.png roi thay file
+(trong jar bang 7-Zip, hoac dung resource pack mau `TotemDoll-SkinPack.zip`). Lop 3D tu dong theo skin moi.
+
+## Animation
+Dung file animation cua goi My Totem Doll (`bedrock/animations/doll.animation.json`):
+- Cam Totem len tay: nho len khoi xo.
+- Nhay: gio hai tay, coc lac.
+- Roi: vuon nguoi, hai tay gio chu V.
+- Cham dat: nen xuong roi bat lai.
+- Dung yen: tho nhe, thinh thoang tu nghieng dau / vay tay / run.
+
+## Credits
+- Pack goc: **My Totem Doll** boi **Ancxliy** (TikTok @ancxliy, YouTube @ancraff, https://linktr.ee/ancxliy).
+- Ban port 1.21.11: **We1rd ツ** (Discord: itz_sh4rk).
+Model, texture va animation thuoc ve Ancxliy - chi dung ca nhan, khong dang lai.
+
+## Lenh
+- `/totemdoll` mo menu.
+- `/totemdoll scale <0.1-4.0>` chinh nhanh First Person Item Scale.
