@@ -17,10 +17,15 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
+<<<<<<< HEAD
           java-version: '25'
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+=======
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v4
+>>>>>>> b8671ba1a55d20e977e9325ff8bc7c83a9bad77e
         with:
           gradle-version: '9.1.0'
 
