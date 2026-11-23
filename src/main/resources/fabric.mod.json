@@ -1,29 +1,16 @@
 {
   "schemaVersion": 1,
   "id": "totemdoll",
-  "version": "${version}",
+  "version": "1.0.0",
   "name": "3D My Totem Doll (1.21.11 port)",
-  "authors": [
-    "Ancxliy (original pack)",
-    "We1rd (port)"
-  ],
-  "contact": {
-    "discord": "itz_sh4rk",
-    "homepage": "https://linktr.ee/ancxliy"
-  },
-  "license": "All-Rights-Reserved",
-  "description": "Totem of Undying becomes a little 3D doll in a cup/bucket with jump and fall animations.",
+  "authors": ["Ancxliy (original pack)", "We1rd (port)"],
+  "contact": { "discord": "itz_sh4rk", "homepage": "https://linktr.ee/ancxliy" },
+  "license": "All Rights Reserved",
+  "description": "Totem of Undying becomes the 3D My Totem Doll by Ancxliy (port by We1rd): bucket / flower bucket / coffee / matcha / foot / 2D models with the original animations.",
   "environment": "client",
   "icon": "assets/totemdoll/icon.png",
-  "entrypoints": {
-    "client": [
-      "dev.totemdoll.client.TotemDollClient"
-    ]
-  },
-  "depends": {
-    "fabricloader": ">=0.17.0",
-    "minecraft": "~1.21.11",
-    "java": ">=21",
-    "fabric-api": "*"
-  }
+  "entrypoints": { "client": ["dev.totemdoll.client.TotemDollClient"],
+    "modmenu": ["dev.totemdoll.client.ModMenuIntegration"] },
+  "suggests": { "modmenu": "*" },
+  "depends": { "fabricloader": ">=0.17.0", "minecraft": "~1.21.11", "java": ">=21", "fabric-api": "*" }
 }

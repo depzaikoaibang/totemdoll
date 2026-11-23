@@ -23,13 +23,16 @@ import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
- * Renders the Totem of Undying as a doll (Alex = slim or Steve = normal skin) sitting in a bucket / flower bucket / coffee / matcha cup,
- * with the pack's keyframe animations and an optional 3D skin layer.
- * Model, animations, 3D layer and per-view rotation/offset/scale come from {@link DollConfig}.
+ * Renders the Totem of Undying as the pack's doll:
+ *  - mod disabled: the vanilla totem sprite
+ *  - 3D Totem: doll (Alex / Steve skin) in a bucket / flower bucket / coffee / matcha cup, or the Foot models
+ *  - 2D Totem: the pack's flat "model2d" figure
+ * Animations come from the pack's Bedrock controllers, optional 3D skin layer and blinking.
  */
 public final class DollSpecialRenderer implements SpecialModelRenderer<Boolean> {
     private static final Identifier ALEX = Identifier.fromNamespaceAndPath("totemdoll", "textures/entity/alex.png");
     private static final Identifier STEVE = Identifier.fromNamespaceAndPath("totemdoll", "textures/entity/steve.png");
+    private static final Identifier VANILLA = Identifier.fromNamespaceAndPath("minecraft", "textures/item/totem_of_undying.png");
 
     private final Map<String, DollModel> models = new HashMap<>();
     private final Map<String, Identifier> cupTextures = new HashMap<>();
@@ -45,7 +48,12 @@ public final class DollSpecialRenderer implements SpecialModelRenderer<Boolean> 
     public void submit(@Nullable Boolean arg, ItemDisplayContext ctx, PoseStack ps, SubmitNodeCollector collector,
                        int light, int overlay, boolean foil, int outlineColor) {
         DollConfig cfg = DollConfig.get();
+        if (!cfg.enabled) {
+            drawVanilla(collector, ps, light, overlay);
+            return;
+        }
         anim.setStill(!cfg.animations);
+        anim.setBlinkEnabled(cfg.blink);
         stepAnimation();
         DollConfig.View v = cfg.view(viewKey(ctx));
 
@@ -57,18 +65,60 @@ public final class DollSpecialRenderer implements SpecialModelRenderer<Boolean> 
             (float) Math.toRadians(v.rz), (float) Math.toRadians(v.ry), (float) Math.toRadians(v.rx)));
         ps.scale(v.scale, v.scale, v.scale);
         ps.translate(-0.5f, -0.5f, -0.5f);
-
         ps.translate(0.5f, 0.0f, 0.5f);
-        // model px -> blocks, turned 180 degrees around Y so the doll faces the viewer (x and z negated)
-        final float s = 1f / 16f;
-        ps.scale(-s, s, -s);
 
         Map<String, DollModel.BoneAnim> pose = anim.pose();
-        Identifier cupTex = cupTextures.computeIfAbsent(cfg.model,
-            n -> Identifier.fromNamespaceAndPath("totemdoll", "textures/entity/" + n + ".png"));
-        draw(collector, ps, model(cfg.model, null), pose, false, cupTex, light, overlay);
         Identifier skin = cfg.slim ? ALEX : STEVE;
-        draw(collector, ps, model(cfg.slim ? "alex" : "steve", skin), pose, cfg.layer3d, skin, light, overlay);
+        final float s = 1f / 16f;
+
+        if (!cfg.totem3d) {
+            // flat 2D totem: the model already faces +Z, so no extra turn; it is drawn at about half size
+            ps.scale(s * 0.45f, s * 0.45f, s * 0.45f);
+            ps.translate(2f, 0f, 0f);
+            DollModel flat = model("model2d", null);
+            draw(collector, ps, flat, pose, false, skin, light, overlay);
+        } else {
+            // model px -> blocks, turned 180 degrees around Y so the doll faces the viewer (x and z negated)
+            ps.scale(-s, s, -s);
+            DollModel doll = model(cfg.slim ? "alex" : "steve", skin);
+            doll.setBlinkRows(cfg.eyeRowTop, cfg.eyeRowBottom);
+            if (cfg.isFoot()) {
+                draw(collector, ps, doll, pose, cfg.layer3d, skin, light, overlay);
+                boolean wide = cfg.model.equals("foot_wide");
+                Map<String, DollModel.BoneAnim> fm = new HashMap<>(pose);
+                DollModel.BoneAnim fb = new DollModel.BoneAnim();
+                fb.ty = 9.4f;                      // hang the legs under the doll
+                fb.tz = -7.2f;
+                fm.put("foot", fb);
+                draw(collector, ps, model(wide ? "foot_steve" : "foot_alex", null), fm, false, wide ? STEVE : ALEX, light, overlay);
+            } else {
+                Identifier cupTex = cupTextures.computeIfAbsent(cfg.model,
+                    n -> Identifier.fromNamespaceAndPath("totemdoll", "textures/entity/" + n + ".png"));
+                draw(collector, ps, model(cfg.model, null), pose, false, cupTex, light, overlay);
+                draw(collector, ps, doll, pose, cfg.layer3d, skin, light, overlay);
+            }
+        }
+        ps.popPose();
+    }
+
+    /** Mod switched off in the settings: show a flat vanilla totem sprite. */
+    private static void drawVanilla(SubmitNodeCollector collector, PoseStack ps, int light, int overlay) {
+        ps.pushPose();
+        collector.submitCustomGeometry(ps, RenderTypes.entityCutoutNoCull(VANILLA), (p, vc) -> {
+            for (int side = 0; side < 2; side++) {
+                float z = 0.5f, nz = side == 0 ? 1f : -1f;
+                float[][] c = side == 0
+                    ? new float[][]{{0, 0}, {1, 0}, {1, 1}, {0, 1}}
+                    : new float[][]{{1, 0}, {0, 0}, {0, 1}, {1, 1}};
+                float[][] uv = side == 0
+                    ? new float[][]{{0, 1}, {1, 1}, {1, 0}, {0, 0}}
+                    : new float[][]{{0, 1}, {1, 1}, {1, 0}, {0, 0}};
+                for (int i = 0; i < 4; i++) {
+                    vc.addVertex(p, c[i][0], c[i][1], z).setColor(255, 255, 255, 255).setUv(uv[i][0], uv[i][1])
+                      .setOverlay(overlay).setLight(light).setNormal(p, 0f, 0f, nz);
+                }
+            }
+        });
         ps.popPose();
     }
 
@@ -81,8 +131,8 @@ public final class DollSpecialRenderer implements SpecialModelRenderer<Boolean> 
                   .setOverlay(overlay).setLight(light).setNormal(p, nx, ny, nz)));
     }
 
-    /** @param skinTexture texture whose opacity drives the 3D skin layer (read through the resource manager,
-     *                     so a replaced alex.png / steve.png in a resource pack is honoured), or null */
+    /** @param skinTexture texture whose opacity drives the 3D skin layer / blink detection (read through the
+     *                     resource manager, so a replaced alex.png / steve.png is honoured), or null */
     private DollModel model(String name, @Nullable Identifier skinTexture) {
         return models.computeIfAbsent(name, n -> {
             DollModel m = DollModel.load("/assets/totemdoll/bedrock/models/" + n + ".geo.json");
@@ -135,10 +185,10 @@ public final class DollSpecialRenderer implements SpecialModelRenderer<Boolean> 
         lastNanos = now;
         LocalPlayer p = Minecraft.getInstance().player;
         if (p == null) {
-            anim.update(dt, true, 0, false);
+            anim.update(dt, true, 0, false, false, 20f);
         } else {
             boolean holding = p.getMainHandItem().is(Items.TOTEM_OF_UNDYING) || p.getOffhandItem().is(Items.TOTEM_OF_UNDYING);
-            anim.update(dt, p.onGround(), p.getDeltaMovement().y, holding);
+            anim.update(dt, p.onGround(), p.getDeltaMovement().y, holding, p.isInWater(), p.getHealth());
         }
     }
 

@@ -14,13 +14,14 @@ import java.util.Locale;
 import java.util.function.Consumer;
 
 /**
- * Main settings screen (open with /totemdoll). Header with credits and socials, then the settings:
- * animations, model selection, 3D skin layer, first person scale, skin, adjust position, done.
+ * Mod settings (opened from Mod Menu's Configure button or with /totemdoll).
+ * Header: title + port credit, Discord of the porter, then the real socials of the original author.
  * The whole content scrolls with the mouse wheel when the window is too small.
  */
 public class DollConfigScreen extends Screen {
     private static final int PANEL_W = 276;
     private static final int LINE = 11;
+    private static int keepScroll;
 
     private final Screen parent;
     private final List<Object[]> labels = new ArrayList<>();   // {String text, Integer baseY, Integer color}
@@ -29,8 +30,10 @@ public class DollConfigScreen extends Screen {
     private int contentTop, contentBottom, shift, scroll, maxScroll;
 
     public DollConfigScreen(Screen parent) {
-        super(Component.literal("3D My Totem Doll | By Ancxliy | Port We1rd \u30C4"));
+        super(Component.literal("3D My Totem Doll | By Ancxliy | port by We1rd\u30C4"));
         this.parent = parent;
+        this.scroll = keepScroll;
+        keepScroll = 0;
     }
 
     private <T extends AbstractWidget> T add(T w) {
@@ -55,7 +58,7 @@ public class DollConfigScreen extends Screen {
         int y = 8;
         contentTop = y;
         y += 6;
-        // ---- header: title is drawn in render(); porter contact first, then Ancxliy's real socials
+        // ---- header: the title is drawn in render(); porter contact first, then Ancxliy's real socials
         label("Discord: itz_sh4rk", y + LINE, 0x8EA1FF);
         y += LINE * 2 + 4;
         label("Ancxliy Social Media", y, 0xFFFF55);
@@ -70,9 +73,15 @@ public class DollConfigScreen extends Screen {
         y += LINE + 8;
 
         // ---- settings
-        add(Button.builder(toggleText("Animations", cfg.animations), b -> {
-            cfg.animations = !cfg.animations;
-            b.setMessage(toggleText("Animations", cfg.animations));
+        add(Button.builder(toggleText("Enable Mod", cfg.enabled), b -> {
+            cfg.enabled = !cfg.enabled;
+            b.setMessage(toggleText("Enable Mod", cfg.enabled));
+        }).bounds(x, y, w, 20).build());
+        y += 24;
+
+        add(Button.builder(toggleText("3D Totem", cfg.totem3d), b -> {
+            cfg.totem3d = !cfg.totem3d;
+            b.setMessage(toggleText("3D Totem", cfg.totem3d));
         }).bounds(x, y, w, 20).build());
         y += 26;
 
@@ -81,7 +90,17 @@ public class DollConfigScreen extends Screen {
         add(Button.builder(Component.literal(DollConfig.MODEL_NAMES[cfg.modelIndex()]), b -> {
             int i = (cfg.modelIndex() + 1) % DollConfig.MODELS.length;
             cfg.model = DollConfig.MODELS[i];
-            b.setMessage(Component.literal(DollConfig.MODEL_NAMES[i]));
+            keepScroll = scroll;
+            DollConfig.save();
+            this.minecraft.setScreen(new DollConfigScreen(parent));     // reload per-model values
+        }).bounds(x, y, w, 20).build());
+        y += 26;
+
+        label("Textures Player Arm Totem Model", y, 0xFFFFFF);
+        y += 11;
+        add(Button.builder(Component.literal(armsText(cfg)), b -> {
+            cfg.slim = !cfg.slim;
+            b.setMessage(Component.literal(armsText(cfg)));
         }).bounds(x, y, w, 20).build());
         y += 26;
 
@@ -91,17 +110,21 @@ public class DollConfigScreen extends Screen {
         }).bounds(x, y, w, 20).build());
         y += 24;
 
-        DollConfig.View first = cfg.view("first");
-        add(new FloatSlider(x, y, w, 20, "First Person Item Scale", 0.2f, 4f, first.scale, 2, v -> first.scale = v));
-        y += 28;
-
-        label("Textures Player Arm Totem Model", y, 0xFFFFFF);
-        y += 11;
-        add(Button.builder(Component.literal(armsText(cfg)), b -> {
-            cfg.slim = !cfg.slim;
-            b.setMessage(Component.literal(armsText(cfg)));
+        add(Button.builder(toggleText("Blink", cfg.blink), b -> {
+            cfg.blink = !cfg.blink;
+            b.setMessage(toggleText("Blink", cfg.blink));
         }).bounds(x, y, w, 20).build());
-        y += 26;
+        y += 24;
+
+        add(Button.builder(toggleText("Animations", cfg.animations), b -> {
+            cfg.animations = !cfg.animations;
+            b.setMessage(toggleText("Animations", cfg.animations));
+        }).bounds(x, y, w, 20).build());
+        y += 24;
+
+        DollConfig.View first = cfg.view("first");
+        add(new FloatSlider(x, y, w, 20, "First Person Item Scale", 0.75f, 1.8f, first.scale, 2, v -> first.scale = v));
+        y += 28;
 
         label("Skins for 3D Totem Player", y, 0xFFFF55);
         y += 11;

@@ -30,13 +30,13 @@ public final class DollModel {
     public static final class BoneAnim {
         public float tx, ty, tz, rx, ry, rz;
         public float sx = 1f, sy = 1f, sz = 1f;
+        public float blink;                // 0 = eyes open .. 1 = closed (head bone only)
         public boolean hidden;
     }
 
     private static final class Cube {
         float x0, y0, z0, x1, y1, z1;      // inflated extents
         float inflate;
-        boolean invertY;
         float[] pivot, rot;
         // per face: {u0, v0, u1, v1} in pixels, order NORTH,SOUTH,EAST,WEST,UP,DOWN
         float[][] uv = new float[6][];
@@ -57,6 +57,9 @@ public final class DollModel {
     private final List<Bone> roots = new ArrayList<>();
     private float texW = 64, texH = 64;
     private PngMask mask;
+    private static final String BLINK_BONE = "2pg_head";
+    private int eyeTop = -1, eyeBottom = -1;      // override from config, -1 = auto-detect
+    private int[] autoEyes;                         // detected {top, bottom} face rows
 
     public static DollModel load(String resourcePath) {
         return load(resourcePath, null);
@@ -111,16 +114,8 @@ public final class DollModel {
         float[] size = floats(o.getAsJsonArray("size"));
         float inf = o.has("inflate") ? o.get("inflate").getAsFloat() : 0f;
         c.inflate = inf;
-        c.invertY = size[1] < 0f;
-        float endX = origin[0] + size[0];
-        float endY = origin[1] + size[1];
-        float endZ = origin[2] + size[2];
-        c.x0 = Math.min(origin[0], endX) - inf;
-        c.y0 = Math.min(origin[1], endY) - inf;
-        c.z0 = Math.min(origin[2], endZ) - inf;
-        c.x1 = Math.max(origin[0], endX) + inf;
-        c.y1 = Math.max(origin[1], endY) + inf;
-        c.z1 = Math.max(origin[2], endZ) + inf;
+        c.x0 = origin[0] - inf; c.y0 = origin[1] - inf; c.z0 = origin[2] - inf;
+        c.x1 = origin[0] + size[0] + inf; c.y1 = origin[1] + size[1] + inf; c.z1 = origin[2] + size[2] + inf;
         if (o.has("pivot")) c.pivot = floats(o.getAsJsonArray("pivot"));
         if (o.has("rotation")) c.rot = floats(o.getAsJsonArray("rotation"));
         JsonElement uv = o.get("uv");
@@ -135,7 +130,7 @@ public final class DollModel {
             }
         } else if (uv != null && uv.isJsonArray()) {          // classic box UV
             float[] p = floats(uv.getAsJsonArray());
-            float sx = Math.abs(size[0]), sy = Math.abs(size[1]), sz = Math.abs(size[2]);
+            float sx = size[0], sy = size[1], sz = size[2];
             c.uv[0] = new float[]{p[0] + sz, p[1] + sz, p[0] + sz + sx, p[1] + sz + sy};
             c.uv[1] = new float[]{p[0] + sz + sx + sz, p[1] + sz, p[0] + sz + sx + sz + sx, p[1] + sz + sy};
             c.uv[2] = new float[]{p[0], p[1] + sz, p[0] + sz, p[1] + sz + sy};
@@ -149,7 +144,10 @@ public final class DollModel {
     public boolean hasBone(String n) { return bones.containsKey(n); }
 
     /** Opacity mask of the skin texture, used by the 3D skin layer. */
-    public void setMask(PngMask mask) { this.mask = mask; }
+    public void setMask(PngMask mask) { this.mask = mask; this.autoEyes = null; }
+
+    /** Face rows (0..7) covered while blinking; -1 = detect automatically from the skin. */
+    public void setBlinkRows(int top, int bottom) { this.eyeTop = top; this.eyeBottom = bottom; }
 
     // ---------------------------------------------------------------- rendering
 
@@ -185,6 +183,7 @@ public final class DollModel {
             if (voxel && c.inflate > 0f) emitVoxels(c, cm, sink);
             else emitCube(c, cm, sink);
         }
+        if (a != null && a.blink > 0.01f && b.name.equals(BLINK_BONE)) emitBlink(b, m, a.blink, sink);
         for (Bone ch : b.children) renderBone(ch, m, anims, voxel, sink);
     }
 
@@ -209,12 +208,82 @@ public final class DollModel {
             if (uv == null) continue;
             float u0 = uv[0] / texW, v0 = uv[1] / texH, u1 = uv[2] / texW, v1 = uv[3] / texH;
             float[][] uvs = {{u0, v0}, {u1, v0}, {u1, v1}, {u0, v1}};
-            float[] baseN = NORMALS[f];
-            float[] n = dir(m, c.invertY ? new float[]{-baseN[0], -baseN[1], -baseN[2]} : baseN);
+            float[] n = dir(m, NORMALS[f]);
             for (int i = 0; i < 4; i++) {
                 float[] p = pos(m, corners[f][i]);
                 sink.vertex(p[0], p[1], p[2], uvs[i][0], uvs[i][1], n[0], n[1], n[2]);
             }
+        }
+    }
+
+    // ---------------------------------------------------------------- blinking
+
+    /** Detects the eye rows of the 8x8 face: rows 2..6 with 2-4 dark (or strongly contrasting) texels. */
+    private int[] detectEyes(float[] uv) {
+        if (autoEyes != null) return autoEyes;
+        int[] res = {4, 4};
+        if (mask != null) {
+            int fx = (int) Math.min(uv[0], uv[2]), fy = (int) Math.min(uv[1], uv[3]);
+            int first = -1, last = -1;
+            for (int j = 2; j <= 6; j++) {
+                int dark = 0;
+                for (int i = 1; i <= 6; i++) {
+                    int c = mask.argb(fx + i, fy + j);
+                    int lum = (int) (0.3 * ((c >> 16) & 255) + 0.59 * ((c >> 8) & 255) + 0.11 * (c & 255));
+                    if ((c >>> 24) > 0 && lum < 100) dark++;
+                }
+                boolean eyeRow = dark >= 2 && dark <= 4;
+                if (eyeRow && first < 0) { first = j; last = j; }
+                else if (eyeRow && first >= 0 && j == last + 1 && last - first < 2) last = j;
+                else if (first >= 0) break;
+            }
+            if (first < 0) {                       // coloured eyes: row with the most contrast against its own median
+                int bestRow = -1, bestCount = 0;
+                for (int j = 3; j <= 6; j++) {
+                    int[] lums = new int[6];
+                    for (int i = 1; i <= 6; i++) {
+                        int c = mask.argb(fx + i, fy + j);
+                        lums[i - 1] = (int) (0.3 * ((c >> 16) & 255) + 0.59 * ((c >> 8) & 255) + 0.11 * (c & 255));
+                    }
+                    int[] sorted = lums.clone();
+                    java.util.Arrays.sort(sorted);
+                    int median = (sorted[2] + sorted[3]) / 2, cnt = 0;
+                    for (int l : lums) if (Math.abs(l - median) > 60) cnt++;
+                    if (cnt >= 2 && cnt <= 4 && cnt > bestCount) { bestCount = cnt; bestRow = j; }
+                }
+                if (bestRow >= 0) { first = bestRow; last = bestRow; }
+            }
+            if (first >= 0) res = new int[]{first, last};
+        }
+        autoEyes = res;
+        return res;
+    }
+
+    /** Covers the eye rows with a strip of skin texels taken from the row below (or above) the eyes. */
+    private void emitBlink(Bone head, float[] m, float blink, Sink sink) {
+        Cube c = null;
+        for (Cube k : head.cubes) if (k.inflate == 0f && k.uv[0] != null) { c = k; break; }
+        if (c == null) return;
+        float[] uv = c.uv[0];                       // north (front) face
+        int tw = Math.round(Math.abs(uv[2] - uv[0])), th = Math.round(Math.abs(uv[3] - uv[1]));
+        if (tw == 0 || th == 0) return;
+        int top, bottom;
+        if (eyeTop >= 0 && eyeBottom >= eyeTop) { top = eyeTop; bottom = Math.min(eyeBottom, th - 1); }
+        else { int[] e = detectEyes(uv); top = e[0]; bottom = e[1]; }
+        int n = bottom - top + 1;
+        int cover = Math.max(1, Math.min(n, (int) Math.ceil(blink * n - 1e-3)));
+        int src = bottom + 1 <= th - 1 ? bottom + 1 : Math.max(0, top - 1);
+        float rowH = (c.y1 - c.y0) / th;
+        float yA = c.y1 - top * rowH, yB = c.y1 - (top + cover) * rowH, z = c.z0 - 0.04f;
+        float uMin = Math.min(uv[0], uv[2]), vMin = Math.min(uv[1], uv[3]);
+        float ul = uMin / texW, ur = (uMin + tw) / texW;
+        float vs0 = (vMin + src) / texH, vs1 = (vMin + src + 1) / texH;
+        float[][] corners = {{c.x1, yA, z}, {c.x0, yA, z}, {c.x0, yB, z}, {c.x1, yB, z}};
+        float[][] uvs = {{ul, vs0}, {ur, vs0}, {ur, vs1}, {ul, vs1}};
+        float[] nrm = dir(m, new float[]{0, 0, -1});
+        for (int i = 0; i < 4; i++) {
+            float[] p = pos(m, corners[i]);
+            sink.vertex(p[0], p[1], p[2], uvs[i][0], uvs[i][1], nrm[0], nrm[1], nrm[2]);
         }
     }
 
@@ -271,9 +340,9 @@ public final class DollModel {
                     out.add(quad(otl, otr, obr, obl, ul, vt, ur, vt, ur, vb, ul, vb, n));
                     float uc = (tx + 0.5f) / texW, vc = (ty + 0.5f) / texH;
                     if (i == 0 || !op[i - 1][j]) out.add(side(otl, tl, bl, obl, uc, vc, sub(tl, tr)));
-                    if (i == tw - 1 || !op[i + 1][j]) out.add(side(otr, obr, br, tr, uc, vc, sub(tr, tl)));
+                    if (i == tw - 1 || !op[i + 1][j]) out.add(side(otr, tr, br, obr, uc, vc, sub(tr, tl)));
                     if (j == 0 || !op[i][j - 1]) out.add(side(otl, otr, tr, tl, uc, vc, sub(tl, bl)));
-                    if (j == th - 1 || !op[i][j + 1]) out.add(side(obl, bl, br, obr, uc, vc, sub(bl, tl)));
+                    if (j == th - 1 || !op[i][j + 1]) out.add(side(obl, obr, br, bl, uc, vc, sub(bl, tl)));
                 }
             }
         }
