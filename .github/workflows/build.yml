@@ -10,12 +10,27 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
+<<<<<<< HEAD
           java-version: 25
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: current
       - run: gradle build --no-daemon
       - uses: actions/upload-artifact@v4
+=======
+          java-version: '25'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: current
+
+      - name: Build with Gradle
+        run: gradle build --no-daemon
+
+      - name: Upload Mod Artifact
+        uses: actions/upload-artifact@v4
+>>>>>>> 77d52a4a4ebdf3c9e5134c11a139375836501648
         with:
           name: totemdoll-jar
           path: |
