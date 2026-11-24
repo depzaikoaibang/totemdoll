@@ -58,7 +58,7 @@ public final class Glass {
         }
 
         @Override
-        public void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        protected void renderContents(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
             float a = getAlpha();
             boolean hot = isHoveredOrFocused() && this.active;
             surface(g, getX(), getY(), getX() + getWidth(), getY() + getHeight(), a, hot ? 1.8f : 1f);
