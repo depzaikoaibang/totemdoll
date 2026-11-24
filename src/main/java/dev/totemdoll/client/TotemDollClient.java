@@ -24,6 +24,7 @@ public final class TotemDollClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         DollConfig.get();
+        DollKeys.register();
 
         // lets assets/minecraft/items/totem_of_undying.json use {"type":"totemdoll:totem_doll"}
         SpecialModelRenderers.ID_MAPPER.put(
@@ -54,6 +55,7 @@ public final class TotemDollClient implements ClientModInitializer {
                         })))));
 
         ClientTickEvents.END_CLIENT_TICK.register(mc -> {
+            DollKeys.tick(mc);
             if (openSettings) {
                 openSettings = false;
                 mc.setScreen(new DollConfigScreen(null));

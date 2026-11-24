@@ -146,9 +146,9 @@ public final class BedrockAnim {
                 if (bone.equals("2pgdgld") && ce.getKey().equals("rotation")) continue;   // pack-specific hand turn
                 double[] v = value(ce.getValue(), animTime, vars);
                 switch (ce.getKey()) {
-                    // Bedrock -> our model space: rotations and the X offset are mirrored
+                    // Bedrock is left-handed: rotations are inverted; positions use the model's own axes
                     case "rotation": a.rx = (float) -v[0]; a.ry = (float) -v[1]; a.rz = (float) -v[2]; break;
-                    case "position": a.tx = (float) -v[0]; a.ty = (float) v[1]; a.tz = (float) v[2]; break;
+                    case "position": a.tx = (float) v[0]; a.ty = (float) v[1]; a.tz = (float) v[2]; break;
                     case "scale": a.sx = (float) v[0]; a.sy = (float) v[1]; a.sz = (float) v[2]; break;
                     default: break;
                 }

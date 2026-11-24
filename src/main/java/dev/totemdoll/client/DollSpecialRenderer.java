@@ -54,6 +54,7 @@ public final class DollSpecialRenderer implements SpecialModelRenderer<Boolean> 
         }
         anim.setStill(!cfg.animations);
         anim.setBlinkEnabled(cfg.blink);
+        anim.setRestOnRim(cfg.totem3d && !cfg.isFoot());
         stepAnimation();
         DollConfig.View v = cfg.view(viewKey(ctx));
 
@@ -87,8 +88,8 @@ public final class DollSpecialRenderer implements SpecialModelRenderer<Boolean> 
                 boolean wide = cfg.model.equals("foot_wide");
                 Map<String, DollModel.BoneAnim> fm = new HashMap<>(pose);
                 DollModel.BoneAnim fb = new DollModel.BoneAnim();
-                fb.ty = 9.4f;                      // hang the legs under the doll
-                fb.tz = -7.2f;
+                fb.ry = 180f;                      // legs point forward (the doll sits), not backward
+                fb.ty = 11.2f;                     // hips right under the body
                 fm.put("foot", fb);
                 draw(collector, ps, model(wide ? "foot_steve" : "foot_alex", null), fm, false, wide ? STEVE : ALEX, light, overlay);
             } else {

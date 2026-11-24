@@ -7,6 +7,8 @@ import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,20 +16,23 @@ import java.util.Locale;
 import java.util.function.Consumer;
 
 /**
- * Mod settings (opened from Mod Menu's Configure button or with /totemdoll).
- * Header: title + port credit, Discord of the porter, then the real socials of the original author.
- * The whole content scrolls with the mouse wheel when the window is too small.
+ * Mod settings (Mod Menu's Configure button, key M, or /totemdoll).
+ * Right: the settings (title + port credit, porter's Discord, Ancxliy's real socials, then the options).
+ * Left: a live "Totem Doll View" of the doll with the current settings. Everything is translucent.
  */
 public class DollConfigScreen extends Screen {
-    private static final int PANEL_W = 276;
+    private static final int PANEL_W = 292;
+    private static final int MARGIN = 8;
     private static final int LINE = 11;
+    private static final float WIDGET_ALPHA = 0.88f;
     private static int keepScroll;
 
     private final Screen parent;
+    private final ItemStack previewStack = new ItemStack(Items.TOTEM_OF_UNDYING);
     private final List<Object[]> labels = new ArrayList<>();   // {String text, Integer baseY, Integer color}
     private final List<AbstractWidget> widgets = new ArrayList<>();
     private final List<Integer> widgetBaseY = new ArrayList<>();
-    private int contentTop, contentBottom, shift, scroll, maxScroll;
+    private int contentTop, contentBottom, shift, scroll, maxScroll, panelX;
 
     public DollConfigScreen(Screen parent) {
         super(Component.literal("3D My Totem Doll | By Ancxliy | port by We1rd\u30C4"));
@@ -53,7 +58,9 @@ public class DollConfigScreen extends Screen {
         widgets.clear();
         widgetBaseY.clear();
         DollConfig cfg = DollConfig.get();
-        int w = 226, x = this.width / 2 - w / 2;
+        int w = PANEL_W - 52;
+        panelX = this.width - PANEL_W - MARGIN;                 // settings panel on the RIGHT
+        int x = panelX + (PANEL_W - w) / 2;
 
         int y = 8;
         contentTop = y;
@@ -69,7 +76,7 @@ public class DollConfigScreen extends Screen {
         y += LINE;
         label("Other Links: [ https://linktr.ee/ancxliy ]", y, 0x55FFFF);
         y += LINE + 3;
-        label("Original pack by Ancxliy. Unofficial 1.21.11 port, personal use.", y, 0x808080);
+        label("Original pack by Ancxliy. Unofficial 1.21.11 port, personal use.", y, 0x909090);
         y += LINE + 8;
 
         // ---- settings
@@ -136,7 +143,8 @@ public class DollConfigScreen extends Screen {
         y += LINE + 8;
 
         add(Button.builder(Component.literal("Adjust Doll Position..."),
-            b -> this.minecraft.setScreen(new DollAdjustScreen(this, null))).bounds(x, y, w, 20).build());
+            b -> this.minecraft.setScreen(new DollAdjustScreen(() -> new DollConfigScreen(parent), null)))
+            .bounds(x, y, w, 20).build());
         y += 26;
 
         add(Button.builder(Component.literal("Done"), b -> onClose()).bounds(x, y, w, 20).build());
@@ -170,20 +178,52 @@ public class DollConfigScreen extends Screen {
         return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
     }
 
+    /** Translucent: only a light tint, the world / panorama stays visible. */
+    @Override
+    public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        g.fill(0, 0, this.width, this.height, 0x38000000);
+    }
+
+    private static void panel(GuiGraphics g, int x1, int y1, int x2, int y2) {
+        g.fill(x1, y1, x2, y2, 0x88101010);
+        g.fill(x1, y1, x2, y1 + 1, 0xAA555555);
+        g.fill(x1, y2 - 1, x2, y2, 0xAA555555);
+        g.fill(x1, y1, x1 + 1, y2, 0xAA555555);
+        g.fill(x2 - 1, y1, x2, y2, 0xAA555555);
+    }
+
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        renderBackground(g, mouseX, mouseY, partialTick);
         int off = shift - scroll;
-        int x1 = this.width / 2 - PANEL_W / 2, x2 = x1 + PANEL_W;
-        int top = contentTop + off, bottom = contentBottom + off;
-        g.fill(x1, top, x2, bottom, 0xC0101010);
-        g.fill(x1, top, x2, top + 1, 0xFF555555);
-        g.fill(x1, bottom - 1, x2, bottom, 0xFF555555);
-        g.fill(x1, top, x1 + 1, bottom, 0xFF555555);
-        g.fill(x2 - 1, top, x2, bottom, 0xFF555555);
+
+        // ---- left: live Totem Doll view
+        int lx1 = MARGIN, lx2 = panelX - MARGIN, ly1 = MARGIN, ly2 = this.height - MARGIN;
+        if (lx2 - lx1 >= 90) {
+            panel(g, lx1, ly1, lx2, ly2);
+            g.drawCenteredString(this.font, Component.literal("Totem Doll View"), (lx1 + lx2) / 2, ly1 + 8, 0xFFFFFF);
+            int size = Math.min(lx2 - lx1 - 16, ly2 - ly1 - 40);
+            if (size > 32) {
+                float scale = size / 16f;
+                var pose = g.pose();
+                pose.pushMatrix();
+                pose.translate((lx1 + lx2) / 2f, (ly1 + ly2) / 2f + 8f);
+                pose.scale(scale, scale);
+                g.renderItem(previewStack, -8, -8);
+                pose.popMatrix();
+            }
+            g.drawCenteredString(this.font, Component.literal(DollConfig.MODEL_NAMES[DollConfig.get().modelIndex()]
+                + " | " + (DollConfig.get().slim ? "Alex" : "Steve")), (lx1 + lx2) / 2, ly2 - 14, 0xAAAAAA);
+        }
+
+        // ---- right: settings
+        int x1 = panelX, x2 = panelX + PANEL_W;
+        panel(g, x1, contentTop + off, x2, contentBottom + off);
+        for (AbstractWidget wd : widgets) wd.setAlpha(WIDGET_ALPHA);
         super.render(g, mouseX, mouseY, partialTick);
-        g.drawCenteredString(this.font, this.title, this.width / 2, contentTop + 6 + off, 0xFFFFFF);
+        g.drawCenteredString(this.font, this.title, (x1 + x2) / 2, contentTop + 6 + off, 0xFFFFFF);
         for (Object[] l : labels) {
-            g.drawCenteredString(this.font, Component.literal((String) l[0]), this.width / 2, (Integer) l[1] + off, (Integer) l[2]);
+            g.drawCenteredString(this.font, Component.literal((String) l[0]), (x1 + x2) / 2, (Integer) l[1] + off, (Integer) l[2]);
         }
     }
 

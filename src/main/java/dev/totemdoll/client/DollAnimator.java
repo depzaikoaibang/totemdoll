@@ -22,6 +22,7 @@ public final class DollAnimator {
     private static final String FALL = "jrnoca", LAND = "vvinnn", EQUIP = "jvvabu", HURT = "ziovgj", RIPPLE = "llaman";
     /** Fidget states of the original controller (index = Math.mod(kkvcsy + random(1..4), 5)). */
     private static final String[][] FIDGETS = {{"fdgzhe"}, {"gwsewn"}, {"yjcpmk", "inhsns"}, {"fjxbyn"}, {"bpgepc"}};
+    private static final float REST_ARM_X = 78f, REST_ARM_Y = 12f;      // degrees (model space), tune to taste
     private static final float[] FADE_T = {0f, 0.0556f, 0.1111f, 0.1667f, 0.2222f, 0.2778f, 0.3333f, 0.3889f, 0.4444f, 0.5f};
     private static final float[] FADE_W = {1f, 0.99451f, 0.9561f, 0.85185f, 0.64883f, 0.35117f, 0.14815f, 0.0439f, 0.00549f, 0f};
 
@@ -57,7 +58,8 @@ public final class DollAnimator {
     private final Random rng = new Random();
     private final List<Layer> layers = new ArrayList<>();
     private float life;
-    private boolean wasHolding, wasAir, still, blinkEnabled = true;
+    private boolean wasHolding, wasAir, still, blinkEnabled = true, restOnRim;
+    private float airTime, lastAirTime, rippleCooldown, restWeight = 1f;
     private Map<String, BoneAnim> pose = new HashMap<>();
     private float blink;
 
@@ -81,6 +83,9 @@ public final class DollAnimator {
     public void setStill(boolean still) { this.still = still; }
 
     public void setBlinkEnabled(boolean on) { this.blinkEnabled = on; }
+
+    /** Cup models: while nothing else is playing the doll rests its hands on the rim instead of hanging. */
+    public void setRestOnRim(boolean on) { this.restOnRim = on; }
 
     /** Current pose for every bone of every model (bone names are shared between the models). */
     public Map<String, BoneAnim> pose() {
@@ -111,10 +116,22 @@ public final class DollAnimator {
         if (lastHealth >= 0f && health < lastHealth - 1e-3f && (hurtLayer == null || hurtLayer.time > 0.49f)) startHurt();
         lastHealth = health;
 
+        if (onGround) {
+            if (wasAir) lastAirTime = airTime;
+            airTime = 0f;
+        } else {
+            airTime += dt;
+        }
+        rippleCooldown = Math.max(0f, rippleCooldown - dt);
         updateFall(dt, onGround, vSpeed, inWater);
-        if (wasAir && onGround && !inWater) {                       // liquid ripple when landing
+        // liquid ripple only after a real drop (not on every stair step), and not more than once a second
+        if (wasAir && onGround && !inWater && lastAirTime > 0.45f && rippleCooldown <= 0f) {
             Layer r = layer(RIPPLE, true);
-            if (r != null) layers.add(r);
+            if (r != null) {
+                for (Layer old : new ArrayList<>(layers)) if (old.clip == r.clip) layers.remove(old);
+                layers.add(r);
+                rippleCooldown = 1.0f;
+            }
         }
         wasAir = !onGround;
         updateFidget(dt, onGround, fastFall, inWater);
@@ -150,15 +167,20 @@ public final class DollAnimator {
     private void updateFall(float dt, boolean onGround, float vSpeed, boolean inWater) {
         switch (fallState) {
             case 0:
-                if (vSpeed < -0.15f && !inWater) enterFall();
+                // needs ~0.2 s in the air: walking down stairs / small steps must not trigger it
+                if (vSpeed < -0.15f && !inWater && airTime > 0.2f) enterFall();
                 break;
             case 1:
                 fallTime += dt;
                 if (inWater) {
                     fadeOut(fallLayer, 0.06f, false);
                     fallState = 0;
-                } else if (vSpeed >= -0.15f || (onGround && fallTime > 0.25f)) {
-                    enterLand(fallTime > 0.25f ? 1f : 0.4f);
+                } else if (onGround) {
+                    if (fallTime > 0.3f) enterLand(1f);                 // real landing: squash
+                    else { fadeOut(fallLayer, 0.12f, false); fallState = 0; }   // tiny drop: just relax
+                } else if (vSpeed >= -0.15f) {
+                    fadeOut(fallLayer, 0.12f, false);                    // slowed down again (rising / water)
+                    fallState = 0;
                 }
                 break;
             default:
@@ -258,12 +280,32 @@ public final class DollAnimator {
             float w = l.weight();
             if (w > 0.001f) add(p, l.clip.name, l.time, w);
         }
+        applyRest(p);
         BoneAnim k = p.get("kedip");
         blink = blinkEnabled ? blinkOf(k) : 0f;
         if (!blinkEnabled && k != null) k.tz = 0.1f;                  // keep the 2D model's eyes open
         BoneAnim head = p.computeIfAbsent("2pg_head", n -> new BoneAnim());
         head.blink = blink;
         pose = p;
+    }
+
+    /**
+     * Hands-on-the-rim pose for the cup models. The doll sinks ~1.8 px into the cup and rests both arms on the
+     * front edge (arms forward, slightly apart). It fades out whenever another animation is active.
+     */
+    private void applyRest(Map<String, BoneAnim> p) {
+        float activity = 0f;
+        for (Layer l : layers) if (l.clip.name.equals(RIPPLE) == false) activity = Math.max(activity, l.weight());
+        float target = restOnRim && !still ? 1f - clamp(activity, 0f, 1f) : 0f;
+        restWeight += (target - restWeight) * 0.12f;
+        if (restWeight < 0.002f) return;
+        float w = restWeight;
+        BoneAnim root = p.computeIfAbsent("2pgdgld", n -> new BoneAnim());
+        root.ty += -1.8f * w;
+        BoneAnim ra = p.computeIfAbsent("2pg_rightarm", n -> new BoneAnim());
+        ra.rx += REST_ARM_X * w; ra.ry += REST_ARM_Y * w;
+        BoneAnim la = p.computeIfAbsent("2pg_leftarm", n -> new BoneAnim());
+        la.rx += REST_ARM_X * w; la.ry -= REST_ARM_Y * w;
     }
 
     /** The pack's kedip bone sits at z=+0.1 (hidden) and slides to z=-0.02 while the eyes are closed. */

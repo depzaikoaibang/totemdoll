@@ -9,12 +9,15 @@ Can Java 21 va Fabric API cho 1.21.11. Mod Menu la tuy chon.
 
 ## Mo cai dat
 - **Mod Menu**: vao Mods -> 3D My Totem Doll -> nut Configure (bieu tuong cai dat).
+- Phim **M** mo cai dat (giong ban 26.3). Phim bat/tat mod nhanh co trong Options > Controls (mac dinh chua gan phim).
 - Hoac go lenh `/totemdoll` trong game.
 - Bat/tat mod nhanh luc dang choi (sinh ton dung doll, PvP tat de ve totem vanilla):
   `/totemdoll toggle`, `/totemdoll on`, `/totemdoll off`.
 - `/totemdoll scale <0.1-4.0>` chinh nhanh do to khi cam.
 
 ## Menu cai dat
+Ben phai: cac nut cai dat. Ben trai: khung **Totem Doll View** xem truoc bup be (cap nhat ngay khi doi cai dat).
+Giao dien trong suot.
 - Enable Mod: tat = quay ve totem vanilla.
 - 3D Totem: tat = totem 2D phang (model2d cua goi goc).
 - Model Selection: Bucket / Flower Bucket / Coffee / Matcha / Foot Wide / Foot Slim.
@@ -33,7 +36,9 @@ alex.png hoac steve.png roi thay file (trong jar bang 7-Zip, hoac dung resource 
 
 ## Animation (port tu animation controller cua goi Bedrock)
 - Cam Totem len tay: nho len khoi xo (drssdv), sau ~1.4s vay tay.
-- Roi: vuon nguoi (fall), cham dat: nen xuong roi bat lai (yytrhz) + song nuoc trong coc (llaman).
+- Roi: vuon nguoi, hai tay gio chu V (khong con cham vao nhau); cham dat: nen xuong roi bat lai.
+  Song nuoc trong coc chi chay khi roi that su (xuong cau thang khong kich hoat).
+- Dung yen o xo/coc: bup be chong hai tay len mep xo/coc thay vi thong tay.
 - Bi thuong: gio tay hoang so (hurt).
 - Dung yen: tho nhe (bob), thinh thoang tu nghieng dau / vay tay / lac coc, chop mat.
 

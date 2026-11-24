@@ -9,25 +9,27 @@ import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
- * "Adjust Doll Position": rotation / offset / scale for each view.
- * The world is NOT darkened, and the whole panel fades out (becomes mostly transparent) while the mouse is
- * away from it, so you can see the doll clearly; move the mouse over the panel to bring it back.
+ * "Adjust Doll Position": rotation / offset / scale for each view of the CURRENT model.
+ * The world is not darkened and the panel is translucent (clearer while the mouse is over it), so the
+ * doll in your hand stays visible. Hold a Totem of Undying to see the changes live.
  */
 public class DollAdjustScreen extends Screen {
     private static int viewIndex = 0;
-    private static final float FADED = 0.22f;
+    private static final float FADED = 0.40f;
 
-    private final Screen parent;
+    private final Supplier<Screen> back;
     private CameraType restoreCamera;
     private final List<AbstractWidget> widgets = new ArrayList<>();
     private int px, py, pw, ph;
     private float fade = 1f;
 
-    public DollAdjustScreen(Screen parent, CameraType restoreCamera) {
+    /** @param back creates the screen to return to (a fresh settings screen, so its values are up to date) */
+    public DollAdjustScreen(Supplier<Screen> back, CameraType restoreCamera) {
         super(Component.literal("Adjust Doll Position"));
-        this.parent = parent;
+        this.back = back;
         this.restoreCamera = restoreCamera;
     }
 
@@ -46,17 +48,18 @@ public class DollAdjustScreen extends Screen {
         if (key.equals("third")) this.minecraft.options.setCameraType(CameraType.THIRD_PERSON_BACK);
         else if (key.equals("first")) this.minecraft.options.setCameraType(CameraType.FIRST_PERSON);
 
-        DollConfig.View v = DollConfig.get().view(key);
-        int colW = 140, gap = 6, x = 12, y = 26, step = 22;
+        DollConfig cfg = DollConfig.get();
+        DollConfig.View v = cfg.view(key);
+        int colW = 140, gap = 6, x = 12, y = 40, step = 22;
         int x2 = x + colW + gap, full = colW * 2 + gap;
         px = x - 6;
-        py = y - 20;
+        py = 6;
         pw = full + 12;
 
         track(Button.builder(Component.literal("View: " + DollConfig.VIEW_NAMES[viewIndex]), b -> {
             DollConfig.save();
             viewIndex = (viewIndex + 1) % DollConfig.VIEWS.length;
-            this.minecraft.setScreen(new DollAdjustScreen(parent, restoreCamera));
+            this.minecraft.setScreen(new DollAdjustScreen(back, restoreCamera));
         }).bounds(x, y, full, 20).build());
         y += step;
 
@@ -76,7 +79,7 @@ public class DollAdjustScreen extends Screen {
             v.rx = v.ry = v.rz = v.ox = v.oy = v.oz = 0f;
             v.scale = 1f;
             DollConfig.save();
-            this.minecraft.setScreen(new DollAdjustScreen(parent, restoreCamera));
+            this.minecraft.setScreen(new DollAdjustScreen(back, restoreCamera));
         }).bounds(x, y, full, 20).build());
         y += step;
 
@@ -92,22 +95,23 @@ public class DollAdjustScreen extends Screen {
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         boolean over = mouseX >= px && mouseX <= px + pw && mouseY >= py && mouseY <= py + ph;
-        float target = over ? 1f : FADED;
-        fade += (target - fade) * 0.2f;
+        fade += ((over ? 1f : FADED) - fade) * 0.25f;
         for (AbstractWidget w : widgets) w.setAlpha(fade);
 
-        int bg = ((int) (fade * 0.7f * 255f) << 24) | 0x101010;
+        int bg = ((int) (fade * 0.65f * 255f) << 24) | 0x101010;
         g.fill(px, py, px + pw, py + ph, bg);
         super.render(g, mouseX, mouseY, partialTick);
-        int tc = ((int) (Math.max(0.15f, fade) * 255f) << 24) | 0xFFFFFF;
+        int tc = ((int) (Math.max(0.35f, fade) * 255f) << 24) | 0xFFFFFF;
         g.drawString(this.font, this.title, px + 6, py + 6, tc);
+        g.drawString(this.font, Component.literal(DollConfig.MODEL_NAMES[DollConfig.get().modelIndex()]
+            + "  |  hold a Totem of Undying to see changes"), px + 6, py + 20, tc);
     }
 
     @Override
     public void onClose() {
         DollConfig.save();
         if (restoreCamera != null) this.minecraft.options.setCameraType(restoreCamera);
-        this.minecraft.setScreen(parent);
+        this.minecraft.setScreen(back.get());
     }
 
     @Override
