@@ -23,6 +23,7 @@ public final class DollAnimator {
     /** Fidget states of the original controller (index = Math.mod(kkvcsy + random(1..4), 5)). */
     private static final String[][] FIDGETS = {{"fdgzhe"}, {"gwsewn"}, {"yjcpmk", "inhsns"}, {"fjxbyn"}, {"bpgepc"}};
     private static final float REST_ARM_X = 78f, REST_ARM_Y = 12f;      // degrees (model space), tune to taste
+    private static final float THIGH_ARM_X = 40f, THIGH_ARM_Y = 8f;
     private static final float[] FADE_T = {0f, 0.0556f, 0.1111f, 0.1667f, 0.2222f, 0.2778f, 0.3333f, 0.3889f, 0.4444f, 0.5f};
     private static final float[] FADE_W = {1f, 0.99451f, 0.9561f, 0.85185f, 0.64883f, 0.35117f, 0.14815f, 0.0439f, 0.00549f, 0f};
 
@@ -58,7 +59,8 @@ public final class DollAnimator {
     private final Random rng = new Random();
     private final List<Layer> layers = new ArrayList<>();
     private float life;
-    private boolean wasHolding, wasAir, still, blinkEnabled = true, restOnRim;
+    private boolean wasHolding, wasAir, still, blinkEnabled = true;
+    private int restMode;                 // 0 none, 1 hands on the cup rim, 2 hands on the thighs (Foot models)
     private float airTime, lastAirTime, rippleCooldown, restWeight = 1f;
     private Map<String, BoneAnim> pose = new HashMap<>();
     private float blink;
@@ -84,8 +86,11 @@ public final class DollAnimator {
 
     public void setBlinkEnabled(boolean on) { this.blinkEnabled = on; }
 
-    /** Cup models: while nothing else is playing the doll rests its hands on the rim instead of hanging. */
-    public void setRestOnRim(boolean on) { this.restOnRim = on; }
+    /**
+     * Idle pose of the arms, kept ALL the time (only the animations that move the arms - falling, waving, cheering,
+     * hurt, equip - temporarily take over): 1 = hands on the cup rim, 2 = hands on the thighs (Foot models).
+     */
+    public void setRestMode(int mode) { this.restMode = mode; }
 
     /** Current pose for every bone of every model (bone names are shared between the models). */
     public Map<String, BoneAnim> pose() {
@@ -290,22 +295,27 @@ public final class DollAnimator {
     }
 
     /**
-     * Hands-on-the-rim pose for the cup models. The doll sinks ~1.8 px into the cup and rests both arms on the
-     * front edge (arms forward, slightly apart). It fades out whenever another animation is active.
+     * Resting arm pose, applied all the time. Only layers that really move the arms (fall, wave 'hello', cheer, hurt,
+     * equip...) fade it out; head-tilt fidgets and the ripple do not, so the hands stay on the cup / thighs.
      */
     private void applyRest(Map<String, BoneAnim> p) {
-        float activity = 0f;
-        for (Layer l : layers) if (l.clip.name.equals(RIPPLE) == false) activity = Math.max(activity, l.weight());
-        float target = restOnRim && !still ? 1f - clamp(activity, 0f, 1f) : 0f;
-        restWeight += (target - restWeight) * 0.12f;
+        float armActivity = 0f;
+        for (Layer l : layers) {
+            if (l.clip.affects("2pg_rightarm") || l.clip.affects("2pg_leftarm")) armActivity = Math.max(armActivity, l.weight());
+        }
+        float target = restMode != 0 && !still ? 1f - clamp(armActivity, 0f, 1f) : 0f;
+        restWeight += (target - restWeight) * 0.15f;
         if (restWeight < 0.002f) return;
         float w = restWeight;
+        float ax, ay, sink;
+        if (restMode == 2) { ax = THIGH_ARM_X; ay = THIGH_ARM_Y; sink = 0f; }        // hands on the thighs
+        else { ax = REST_ARM_X; ay = REST_ARM_Y; sink = -1.8f; }                       // hands on the cup rim
         BoneAnim root = p.computeIfAbsent("2pgdgld", n -> new BoneAnim());
-        root.ty += -1.8f * w;
+        root.ty += sink * w;
         BoneAnim ra = p.computeIfAbsent("2pg_rightarm", n -> new BoneAnim());
-        ra.rx += REST_ARM_X * w; ra.ry += REST_ARM_Y * w;
+        ra.rx += ax * w; ra.ry += ay * w;
         BoneAnim la = p.computeIfAbsent("2pg_leftarm", n -> new BoneAnim());
-        la.rx += REST_ARM_X * w; la.ry -= REST_ARM_Y * w;
+        la.rx += ax * w; la.ry -= ay * w;
     }
 
     /** The pack's kedip bone sits at z=+0.1 (hidden) and slides to z=-0.02 while the eyes are closed. */

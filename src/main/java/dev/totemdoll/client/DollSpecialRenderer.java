@@ -54,7 +54,7 @@ public final class DollSpecialRenderer implements SpecialModelRenderer<Boolean> 
         }
         anim.setStill(!cfg.animations);
         anim.setBlinkEnabled(cfg.blink);
-        anim.setRestOnRim(cfg.totem3d && !cfg.isFoot());
+        anim.setRestMode(!cfg.totem3d ? 0 : cfg.isFoot() ? 2 : 1);
         stepAnimation();
         DollConfig.View v = cfg.view(viewKey(ctx));
 
@@ -73,8 +73,8 @@ public final class DollSpecialRenderer implements SpecialModelRenderer<Boolean> 
         final float s = 1f / 16f;
 
         if (!cfg.totem3d) {
-            // flat 2D totem: the model already faces +Z, so no extra turn; it is drawn at about half size
-            ps.scale(s * 0.45f, s * 0.45f, s * 0.45f);
+            // flat 2D totem: the model is built 1:1 (16 px tall) and already faces +Z, so no extra turn
+            ps.scale(s, s, s);
             ps.translate(2f, 0f, 0f);
             DollModel flat = model("model2d", null);
             draw(collector, ps, flat, pose, false, skin, light, overlay);
@@ -159,11 +159,13 @@ public final class DollSpecialRenderer implements SpecialModelRenderer<Boolean> 
     private static String viewKey(ItemDisplayContext c) {
         switch (c) {
             case FIRST_PERSON_LEFT_HAND:
+                return "first_l";
             case FIRST_PERSON_RIGHT_HAND:
-                return "first";
+                return "first_r";
             case THIRD_PERSON_LEFT_HAND:
+                return "third_l";
             case THIRD_PERSON_RIGHT_HAND:
-                return "third";
+                return "third_r";
             case GUI:
                 return "gui";
             case FIXED:

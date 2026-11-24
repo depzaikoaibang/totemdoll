@@ -48,7 +48,8 @@ public final class TotemDollClient implements ClientModInitializer {
                     .then(ClientCommandManager.argument("value", FloatArgumentType.floatArg(0.1f, 4.0f))
                         .executes(ctx -> {
                             float v = FloatArgumentType.getFloat(ctx, "value");
-                            DollConfig.get().view("first").scale = v;
+                            DollConfig.get().view("first_r").scale = v;
+                            DollConfig.get().view("first_l").scale = v;
                             DollConfig.save();
                             ctx.getSource().sendFeedback(Component.literal("[TotemDoll] First person scale: " + v));
                             return 1;

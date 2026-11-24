@@ -35,6 +35,9 @@ public final class DollConfig {
         public float scale = 1f;
     }
 
+    /** First / third person have a separate setting per hand: "first_r", "first_l", "third_r", "third_l". */
+    public static boolean hasHands(String view) { return view.equals("first") || view.equals("third"); }
+
     /** Position settings are stored per model, so Foot and Bucket can be tuned separately. */
     public View view(String key) {
         return views.computeIfAbsent(model + ":" + key, k -> new View());

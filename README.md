@@ -16,8 +16,9 @@ Can Java 21 va Fabric API cho 1.21.11. Mod Menu la tuy chon.
 - `/totemdoll scale <0.1-4.0>` chinh nhanh do to khi cam.
 
 ## Menu cai dat
-Ben phai: cac nut cai dat. Ben trai: khung **Totem Doll View** xem truoc bup be (cap nhat ngay khi doi cai dat).
-Giao dien trong suot.
+Giao dien **liquid glass** trong suot (khong toi, khong den).
+Ben phai: cac nut cai dat. Ben trai: **Totem Doll View** - bup be 3D xoay (turntable), co animation that,
+cap nhat NGAY khi doi bat ky cai dat nao (khong cap nhat qua atlas item nen khong bi pixel/dung hinh).
 - Enable Mod: tat = quay ve totem vanilla.
 - 3D Totem: tat = totem 2D phang (model2d cua goi goc).
 - Model Selection: Bucket / Flower Bucket / Coffee / Matcha / Foot Wide / Foot Slim.
@@ -27,6 +28,8 @@ Giao dien trong suot.
 - Animations: bat/tat animation.
 - First Person Item Scale: 0.75 - 1.8.
 - Adjust Doll Position: Rotation / Offset / Scale cho tung goc nhin va tung model.
+  First / Third Person co **Edit hand: Both / Left / Right** (Both = sua ca hai tay, tay trai tu lat guong).
+  Ben phai co khung Preview xem ngay ket qua; cam Totem de thay trong game.
 
 ## Skin: Alex (slim) hoac Steve (normal)
 - `assets/totemdoll/textures/entity/alex.png`  (tay 3px)
@@ -38,7 +41,8 @@ alex.png hoac steve.png roi thay file (trong jar bang 7-Zip, hoac dung resource 
 - Cam Totem len tay: nho len khoi xo (drssdv), sau ~1.4s vay tay.
 - Roi: vuon nguoi, hai tay gio chu V (khong con cham vao nhau); cham dat: nen xuong roi bat lai.
   Song nuoc trong coc chi chay khi roi that su (xuong cau thang khong kich hoat).
-- Dung yen o xo/coc: bup be chong hai tay len mep xo/coc thay vi thong tay.
+- Tay luon dat 24/7: o xo/coc chong hai tay len mep, o Foot chong tay len dui. Chi khi roi / vay tay (hello) /
+  hoan ho / bi thuong thi tay roi khoi vi tri nghi roi quay lai.
 - Bi thuong: gio tay hoang so (hurt).
 - Dung yen: tho nhe (bob), thinh thoang tu nghieng dau / vay tay / lac coc, chop mat.
 
