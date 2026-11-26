@@ -16,7 +16,7 @@ Can Java 21 va Fabric API cho 1.21.11. Mod Menu la tuy chon.
 - `/totemdoll scale <0.1-4.0>` chinh nhanh do to khi cam.
 
 ## Menu cai dat
-Giao dien **liquid glass** trong suot (khong toi, khong den).
+Giao dien kieu ban 26.3 (nut vanilla, panel toi trong suot).
 Ben phai: cac nut cai dat. Ben trai: **Totem Doll View** - bup be 3D xoay (turntable), co animation that,
 cap nhat NGAY khi doi bat ky cai dat nao (khong cap nhat qua atlas item nen khong bi pixel/dung hinh).
 - Enable Mod: tat = quay ve totem vanilla.
@@ -49,3 +49,8 @@ alex.png hoac steve.png roi thay file (trong jar bang 7-Zip, hoac dung resource 
 ## Credits
 - Pack goc: **Ancxliy** - TikTok @ancxliy, YouTube @ancraff, https://linktr.ee/ancxliy
 - Port 1.21.11: **We1rd ツ** - Discord: itz_sh4rk
+
+## Tuong thich Punchy (first-person animations)
+Punchy ve vat cam o goc nhin thu nhat bang display context **THIRD_PERSON_*** cua Minecraft. Mod nhan biet theo camera:
+khi camera dang o goc nhin thu nhat thi context THIRD_PERSON duoc coi la tay cua ban va dung cai dat **First Person**
+(Adjust Doll Position > View: First Person). Khi bam F5 (camera third person) thi dung cai dat **Third Person**.

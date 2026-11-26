@@ -156,16 +156,22 @@ public final class DollSpecialRenderer implements SpecialModelRenderer<Boolean> 
         return null;
     }
 
+    /**
+     * Which settings apply. Mods like Punchy draw the local player's FIRST-person item with the THIRD-person
+     * display context, so while the camera is in first person a "third person" context is the player's own
+     * hand and uses the First Person settings.
+     */
     private static String viewKey(ItemDisplayContext c) {
+        boolean firstCamera = Minecraft.getInstance().options.getCameraType().isFirstPerson();
         switch (c) {
             case FIRST_PERSON_LEFT_HAND:
                 return "first_l";
             case FIRST_PERSON_RIGHT_HAND:
                 return "first_r";
             case THIRD_PERSON_LEFT_HAND:
-                return "third_l";
+                return firstCamera ? "first_l" : "third_l";
             case THIRD_PERSON_RIGHT_HAND:
-                return "third_r";
+                return firstCamera ? "first_r" : "third_r";
             case GUI:
                 return "gui";
             case FIXED:

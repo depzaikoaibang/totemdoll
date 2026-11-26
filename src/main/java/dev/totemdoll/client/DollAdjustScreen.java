@@ -4,6 +4,7 @@ import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -18,9 +19,9 @@ import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
- * "Adjust Doll Position" (liquid glass): rotation / offset / scale for each view of the CURRENT model.
+ * "Adjust Doll Position" (vanilla look like the 26.3 version): rotation / offset / scale for each view of the CURRENT model.
  * First / third person can be edited for Both hands, only the Left hand or only the Right hand.
- * Right side: a live preview with the settings applied. The glass panel is translucent and clearer
+ * Right side: a live preview with the settings applied. The panel is translucent and clearer
  * while the mouse is over it, so the doll in your hand stays visible. Hold a Totem to see it in the world.
  */
 public class DollAdjustScreen extends Screen {
@@ -141,42 +142,42 @@ public class DollAdjustScreen extends Screen {
         py = 6;
         pw = full + 12;
 
-        track(new Glass.Btn(x, y, full, 20, Component.literal("View: " + DollConfig.VIEW_NAMES[viewIndex]), b -> {
+        track(Button.builder(Component.literal("View: " + DollConfig.VIEW_NAMES[viewIndex]), b -> {
             DollConfig.save();
             viewIndex = (viewIndex + 1) % DollConfig.VIEWS.length;
             this.minecraft.setScreen(new DollAdjustScreen(back, restoreCamera));
-        }));
+        }).bounds(x, y, full, 20).build());
         y += step;
 
         if (DollConfig.hasHands(key)) {
-            track(new Glass.Btn(x, y, full, 20, Component.literal("Edit hand: " + HAND_NAMES[handMode]), b -> {
+            track(Button.builder(Component.literal("Edit hand: " + HAND_NAMES[handMode]), b -> {
                 DollConfig.save();
                 handMode = (handMode + 1) % 3;
                 this.minecraft.setScreen(new DollAdjustScreen(back, restoreCamera));
-            }));
+            }).bounds(x, y, full, 20).build());
             y += step;
         }
 
-        track(new Glass.Slider(x, y, colW, 20, "Rotation X", -180f, 180f, get(src, F.RX), 0, f -> set(key, F.RX, f)));
-        track(new Glass.Slider(x2, y, colW, 20, "Offset X", -16f, 16f, get(src, F.OX), 1, f -> set(key, F.OX, f)));
+        track(new DollConfigScreen.FloatSlider(x, y, colW, 20, "Rotation X", -180f, 180f, get(src, F.RX), 0, f -> set(key, F.RX, f)));
+        track(new DollConfigScreen.FloatSlider(x2, y, colW, 20, "Offset X", -16f, 16f, get(src, F.OX), 1, f -> set(key, F.OX, f)));
         y += step;
-        track(new Glass.Slider(x, y, colW, 20, "Rotation Y", -180f, 180f, get(src, F.RY), 0, f -> set(key, F.RY, f)));
-        track(new Glass.Slider(x2, y, colW, 20, "Offset Y", -16f, 16f, get(src, F.OY), 1, f -> set(key, F.OY, f)));
+        track(new DollConfigScreen.FloatSlider(x, y, colW, 20, "Rotation Y", -180f, 180f, get(src, F.RY), 0, f -> set(key, F.RY, f)));
+        track(new DollConfigScreen.FloatSlider(x2, y, colW, 20, "Offset Y", -16f, 16f, get(src, F.OY), 1, f -> set(key, F.OY, f)));
         y += step;
-        track(new Glass.Slider(x, y, colW, 20, "Rotation Z", -180f, 180f, get(src, F.RZ), 0, f -> set(key, F.RZ, f)));
-        track(new Glass.Slider(x2, y, colW, 20, "Offset Z", -16f, 16f, get(src, F.OZ), 1, f -> set(key, F.OZ, f)));
+        track(new DollConfigScreen.FloatSlider(x, y, colW, 20, "Rotation Z", -180f, 180f, get(src, F.RZ), 0, f -> set(key, F.RZ, f)));
+        track(new DollConfigScreen.FloatSlider(x2, y, colW, 20, "Offset Z", -16f, 16f, get(src, F.OZ), 1, f -> set(key, F.OZ, f)));
         y += step;
-        track(new Glass.Slider(x, y, full, 20, "Scale", 0.1f, 3f, get(src, F.SC), 2, f -> set(key, F.SC, f)));
+        track(new DollConfigScreen.FloatSlider(x, y, full, 20, "Scale", 0.1f, 3f, get(src, F.SC), 2, f -> set(key, F.SC, f)));
         y += step;
 
-        track(new Glass.Btn(x, y, full, 20, Component.literal("Reset To Original Values"), b -> {
+        track(Button.builder(Component.literal("Reset To Original Values"), b -> {
             reset(key);
             DollConfig.save();
             this.minecraft.setScreen(new DollAdjustScreen(back, restoreCamera));
-        }));
+        }).bounds(x, y, full, 20).build());
         y += step;
 
-        track(new Glass.Btn(x, y, full, 20, Component.literal("Done"), b -> onClose()));
+        track(Button.builder(Component.literal("Done"), b -> onClose()).bounds(x, y, full, 20).build());
         ph = y + 26 - py;
     }
 
@@ -191,7 +192,7 @@ public class DollAdjustScreen extends Screen {
         fade += ((over ? 1f : FADED) - fade) * 0.25f;
         for (AbstractWidget w : widgets) w.setAlpha(fade);
 
-        Glass.panel(g, px, py, px + pw, py + ph, fade);
+        DollConfigScreen.panel(g, px, py, px + pw, py + ph, fade);
         super.render(g, mouseX, mouseY, partialTick);
         int tc = (((int) (Math.max(0.35f, fade) * 255f)) << 24) | 0xFFFFFF;
         g.drawString(this.font, this.title, px + 6, py + 6, tc);
@@ -203,7 +204,7 @@ public class DollAdjustScreen extends Screen {
         // ---- live preview with the settings applied (right side)
         int size = Math.min(150, this.height - 60);
         int rx2 = this.width - 12, rx1 = rx2 - size - 16, ry1 = 6, ry2 = ry1 + size + 34;
-        Glass.panel(g, rx1, ry1, rx2, ry2, Math.max(0.6f, fade));
+        DollConfigScreen.panel(g, rx1, ry1, rx2, ry2, Math.max(0.6f, fade));
         g.drawCenteredString(this.font, Component.literal("Preview"), (rx1 + rx2) / 2, ry1 + 6, 0xFFFFFFFF);
         float cell = size / (float) DollPreview.RES;
         var pose = g.pose();
