@@ -10,11 +10,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-<<<<<<< HEAD
-          java-version: 25
-=======
           java-version: '25'
->>>>>>> bce5d017cd3e0cb805a3074459bda32bea78aa21
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: current
