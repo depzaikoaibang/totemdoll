@@ -17,7 +17,8 @@ public final class DollPreview {
     /** id = "namespace:path/to/texture.png" */
     public interface Textures { PngMask get(String id); }
 
-    public static final int RES = 128;                     // raster resolution (RES x RES cells)
+    /** Supersampling per axis (anti-aliasing). The output is n x n pixels = real screen pixels. */
+    private static final int SS = 2;
     private static final String ALEX = "totemdoll:textures/entity/alex.png";
     private static final String STEVE = "totemdoll:textures/entity/steve.png";
     private static final String VANILLA = "minecraft:textures/item/totem_of_undying.png";
@@ -27,8 +28,11 @@ public final class DollPreview {
     private final DollAnimator anim = new DollAnimator();
     private final Map<String, DollModel> models = new HashMap<>();
     private final Map<String, Boolean> masked = new HashMap<>();
-    private final int[] color = new int[RES * RES];
-    private final float[] depth = new float[RES * RES];
+    private int n = 0, W = 0;                              // output size and supersampled size
+    private int[] color = new int[0];
+    private float[] depth = new float[0];
+    private int[] outPx = new int[0];
+    private boolean[] done = new boolean[0];
     private float angle = 20f;
     private long last = System.nanoTime();
     private boolean first = true;
@@ -60,6 +64,22 @@ public final class DollPreview {
      * @param adjust optional position settings to apply (Adjust Doll Position preview)
      */
     public void render(Canvas canvas, boolean spin, DollConfig.View adjust) {
+        render(canvas, spin, adjust, 256);
+    }
+
+    /**
+     * @param pixels size of the square output in real screen pixels (one fill cell = one screen pixel)
+     */
+    public void render(Canvas canvas, boolean spin, DollConfig.View adjust, int pixels) {
+        int want = Math.max(64, Math.min(560, pixels));
+        if (want != n) {
+            n = want;
+            W = n * SS;
+            color = new int[W * W];
+            depth = new float[W * W];
+            outPx = new int[n * n];
+            done = new boolean[n * n];
+        }
         long now = System.nanoTime();
         float dt = Math.min(0.1f, (now - last) / 1_000_000_000f);
         last = now;
@@ -163,11 +183,11 @@ public final class DollPreview {
         }
         if (n[2] < 0f) { n[0] = -n[0]; n[1] = -n[1]; n[2] = -n[2]; }    // double-sided
         float shade = 0.55f + 0.45f * Math.max(0f, n[0] * LIGHT[0] + n[1] * LIGHT[1] + n[2] * LIGHT[2]);
-        float sc = RES * 0.84f / 20f;
+        float sc = W * 0.84f / 20f;
         float[] sx = new float[4], sy = new float[4], sz = new float[4];
         for (int i = 0; i < 4; i++) {
-            sx[i] = RES / 2f + p[i][0] * sc;
-            sy[i] = RES * 0.5f - (p[i][1] - 8f) * sc;
+            sx[i] = W / 2f + p[i][0] * sc;
+            sy[i] = W * 0.5f - (p[i][1] - 8f) * sc;
             sz[i] = p[i][2];
         }
         tri(sx, sy, sz, q, 0, 1, 2, t, shade);
@@ -179,9 +199,9 @@ public final class DollPreview {
         float den = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2);
         if (Math.abs(den) < 1e-6f) return;
         int minX = Math.max(0, (int) Math.floor(Math.min(x0, Math.min(x1, x2))));
-        int maxX = Math.min(RES - 1, (int) Math.ceil(Math.max(x0, Math.max(x1, x2))));
+        int maxX = Math.min(W - 1, (int) Math.ceil(Math.max(x0, Math.max(x1, x2))));
         int minY = Math.max(0, (int) Math.floor(Math.min(y0, Math.min(y1, y2))));
-        int maxY = Math.min(RES - 1, (int) Math.ceil(Math.max(y0, Math.max(y1, y2))));
+        int maxY = Math.min(W - 1, (int) Math.ceil(Math.max(y0, Math.max(y1, y2))));
         for (int y = minY; y <= maxY; y++) {
             for (int x = minX; x <= maxX; x++) {
                 float px = x + 0.5f, py = y + 0.5f;
@@ -190,7 +210,7 @@ public final class DollPreview {
                 float l2 = 1f - l0 - l1;
                 if (l0 < -1e-4f || l1 < -1e-4f || l2 < -1e-4f) continue;
                 float z = l0 * sz[a] + l1 * sz[b] + l2 * sz[c];
-                int idx = y * RES + x;
+                int idx = y * W + x;
                 if (z < depth[idx] - 1e-3f) continue;
                 float u = l0 * q[a * 5 + 3] + l1 * q[b * 5 + 3] + l2 * q[c * 5 + 3];
                 float v = l0 * q[a * 5 + 4] + l1 * q[b * 5 + 4] + l2 * q[c * 5 + 4];
@@ -207,17 +227,44 @@ public final class DollPreview {
         }
     }
 
-    /** Emits the raster as run-length merged rectangles (in raster cells; the caller scales them). */
+    /**
+     * Downsamples the supersampled raster to n x n pixels (edge anti-aliasing through alpha) and emits it as
+     * greedy-merged rectangles: blocks of identical colour (the texels of the model) become one big fill.
+     */
     private void flush(Canvas c) {
-        for (int y = 0; y < RES; y++) {
-            int x = 0;
-            while (x < RES) {
-                int col = color[y * RES + x];
-                if (col == 0) { x++; continue; }
+        final int area = SS * SS;
+        for (int y = 0; y < n; y++) {
+            for (int x = 0; x < n; x++) {
+                int cnt = 0, r = 0, g = 0, b = 0;
+                for (int sy = 0; sy < SS; sy++) {
+                    int row = (y * SS + sy) * W + x * SS;
+                    for (int sx = 0; sx < SS; sx++) {
+                        int col = color[row + sx];
+                        if (col != 0) { cnt++; r += (col >> 16) & 255; g += (col >> 8) & 255; b += col & 255; }
+                    }
+                }
+                outPx[y * n + x] = cnt == 0 ? 0
+                    : ((cnt * 255 / area) << 24) | ((r / cnt) << 16) | ((g / cnt) << 8) | (b / cnt);
+            }
+        }
+        java.util.Arrays.fill(done, false);
+        for (int y = 0; y < n; y++) {
+            for (int x = 0; x < n; x++) {
+                int idx = y * n + x;
+                int col = outPx[idx];
+                if (col == 0 || done[idx]) continue;
                 int e = x + 1;
-                while (e < RES && color[y * RES + e] == col) e++;
-                c.fill(x, y, e, y + 1, col);
-                x = e;
+                while (e < n && outPx[y * n + e] == col && !done[y * n + e]) e++;
+                int bot = y + 1;
+                outer:
+                while (bot < n) {
+                    for (int k = x; k < e; k++) {
+                        if (outPx[bot * n + k] != col || done[bot * n + k]) break outer;
+                    }
+                    bot++;
+                }
+                for (int yy = y; yy < bot; yy++) for (int xx = x; xx < e; xx++) done[yy * n + xx] = true;
+                c.fill(x, y, e, bot, col);
             }
         }
     }

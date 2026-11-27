@@ -233,12 +233,13 @@ public class DollConfigScreen extends Screen {
             g.drawCenteredString(this.font, Component.literal("Totem Doll View"), (lx1 + lx2) / 2, ly1 + 8, 0xFFFFFFFF);
             int size = Math.min(lx2 - lx1 - 16, ly2 - ly1 - 44);
             if (size > 32) {
-                float cell = size / (float) DollPreview.RES;
+                int pixels = Math.max(64, Math.min(560, Math.round(size * (float) this.minecraft.getWindow().getGuiScale())));
+                float cell = size / (float) pixels;
                 var pose = g.pose();
                 pose.pushMatrix();
                 pose.translate((lx1 + lx2) / 2f - size / 2f, ly1 + 22f + (ly2 - ly1 - 44 - size) / 2f);
                 pose.scale(cell, cell);
-                preview.render((x1, y1, x2, y2, c) -> g.fill(x1, y1, x2, y2, c), true, null);
+                preview.render((x1, y1, x2, y2, c) -> g.fill(x1, y1, x2, y2, c), true, null, pixels);
                 pose.popMatrix();
             }
             DollConfig cfg = DollConfig.get();

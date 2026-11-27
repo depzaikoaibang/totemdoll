@@ -206,12 +206,13 @@ public class DollAdjustScreen extends Screen {
         int rx2 = this.width - 12, rx1 = rx2 - size - 16, ry1 = 6, ry2 = ry1 + size + 34;
         DollConfigScreen.panel(g, rx1, ry1, rx2, ry2, Math.max(0.6f, fade));
         g.drawCenteredString(this.font, Component.literal("Preview"), (rx1 + rx2) / 2, ry1 + 6, 0xFFFFFFFF);
-        float cell = size / (float) DollPreview.RES;
+        int pixels = Math.max(64, Math.min(560, Math.round(size * (float) this.minecraft.getWindow().getGuiScale())));
+        float cell = size / (float) pixels;
         var pose = g.pose();
         pose.pushMatrix();
         pose.translate(rx1 + 8f, ry1 + 22f);
         pose.scale(cell, cell);
-        preview.render((x1, y1, x2, y2, c) -> g.fill(x1, y1, x2, y2, c), false, source(DollConfig.VIEWS[viewIndex]));
+        preview.render((x1, y1, x2, y2, c) -> g.fill(x1, y1, x2, y2, c), false, source(DollConfig.VIEWS[viewIndex]), pixels);
         pose.popMatrix();
     }
 

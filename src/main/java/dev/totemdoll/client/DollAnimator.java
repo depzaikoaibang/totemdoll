@@ -20,6 +20,7 @@ import java.util.Random;
 public final class DollAnimator {
     private static final String BOB = "jmryog", IDLE = "tuqbfp", KEDIP = "new";
     private static final String FALL = "jrnoca", LAND = "vvinnn", EQUIP = "jvvabu", HURT = "ziovgj", RIPPLE = "llaman";
+    private static final String HELLO = "yjcpmk";
     /** Fidget states of the original controller (index = Math.mod(kkvcsy + random(1..4), 5)). */
     private static final String[][] FIDGETS = {{"fdgzhe"}, {"gwsewn"}, {"yjcpmk", "inhsns"}, {"fjxbyn"}, {"bpgepc"}};
     private static final float REST_ARM_X = 78f, REST_ARM_Y = 12f;      // degrees (model space), tune to taste
@@ -283,7 +284,7 @@ public final class DollAnimator {
         add(p, KEDIP, life, 1f);
         for (Layer l : layers) {
             float w = l.weight();
-            if (w > 0.001f) add(p, l.clip.name, l.time, w);
+            if (w > 0.001f) add(p, l.clip.name, l.time, w, !armsFree(l.clip.name));
         }
         applyRest(p);
         BoneAnim k = p.get("kedip");
@@ -300,11 +301,9 @@ public final class DollAnimator {
      */
     private void applyRest(Map<String, BoneAnim> p) {
         float armActivity = 0f;
-        for (Layer l : layers) {
-            if (l.clip.affects("2pg_rightarm") || l.clip.affects("2pg_leftarm")) armActivity = Math.max(armActivity, l.weight());
-        }
-        float target = restMode != 0 && !still ? 1f - clamp(armActivity, 0f, 1f) : 0f;
-        restWeight += (target - restWeight) * 0.15f;
+        for (Layer l : layers) if (armsFree(l.clip.name)) armActivity = Math.max(armActivity, l.weight());
+        // exact complement of the animation's weight: the arms glide between the two without passing the hanging pose
+        restWeight = restMode != 0 && !still ? 1f - clamp(armActivity, 0f, 1f) : 0f;
         if (restWeight < 0.002f) return;
         float w = restWeight;
         float ax, ay, sink;
@@ -325,11 +324,21 @@ public final class DollAnimator {
     }
 
     private void add(Map<String, BoneAnim> out, String clipName, float time, float weight) {
+        add(out, clipName, time, weight, false);
+    }
+
+    /** Only the falling pose and the "hello" wave are allowed to take the arms away from their resting place. */
+    private static boolean armsFree(String clip) {
+        return clip.equals(FALL) || clip.equals(HELLO);
+    }
+
+    private void add(Map<String, BoneAnim> out, String clipName, float time, float weight, boolean maskArms) {
         BedrockAnim.Clip c = anims.clip(clipName);
         if (c == null) return;
         Map<String, BoneAnim> tmp = new HashMap<>();
         BedrockAnim.sample(c, time, ctx(), tmp);
         for (Map.Entry<String, BoneAnim> e : tmp.entrySet()) {
+            if (maskArms && (e.getKey().equals("2pg_rightarm") || e.getKey().equals("2pg_leftarm"))) continue;
             BoneAnim a = e.getValue(), r = out.computeIfAbsent(e.getKey(), n -> new BoneAnim());
             r.rx += a.rx * weight; r.ry += a.ry * weight; r.rz += a.rz * weight;
             r.tx += a.tx * weight; r.ty += a.ty * weight; r.tz += a.tz * weight;

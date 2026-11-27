@@ -18,7 +18,8 @@ Can Java 21 va Fabric API cho 1.21.11. Mod Menu la tuy chon.
 ## Menu cai dat
 Giao dien kieu ban 26.3 (nut vanilla, panel toi trong suot).
 Ben phai: cac nut cai dat. Ben trai: **Totem Doll View** - bup be 3D xoay (turntable), co animation that,
-cap nhat NGAY khi doi bat ky cai dat nao (khong cap nhat qua atlas item nen khong bi pixel/dung hinh).
+cap nhat NGAY khi doi bat ky cai dat nao. Ve o do phan giai that cua man hinh (1 o = 1 pixel man hinh) co khu rang cua,
+khong dung atlas item nen khong bi pixel/dung hinh.
 - Enable Mod: tat = quay ve totem vanilla.
 - 3D Totem: tat = totem 2D phang (model2d cua goi goc).
 - Model Selection: Bucket / Flower Bucket / Coffee / Matcha / Foot Wide / Foot Slim.
@@ -41,8 +42,9 @@ alex.png hoac steve.png roi thay file (trong jar bang 7-Zip, hoac dung resource 
 - Cam Totem len tay: nho len khoi xo (drssdv), sau ~1.4s vay tay.
 - Roi: vuon nguoi, hai tay gio chu V (khong con cham vao nhau); cham dat: nen xuong roi bat lai.
   Song nuoc trong coc chi chay khi roi that su (xuong cau thang khong kich hoat).
-- Tay luon dat 24/7: o xo/coc chong hai tay len mep, o Foot chong tay len dui. Chi khi roi / vay tay (hello) /
-  hoan ho / bi thuong thi tay roi khoi vi tri nghi roi quay lai.
+- Tay luon dat 24/7: o xo/coc chong hai tay len mep, o Foot chong tay len dui. CHI khi roi (gio chu V) va vay tay
+  (hello) thi tay roi vi tri nghi, roi quay lai muot (khong tuot ra sau, khong thut vao). Cac animation khac
+  (cham dat, cam len, bi thuong, nghieng dau...) khong dong vao tay.
 - Bi thuong: gio tay hoang so (hurt).
 - Dung yen: tho nhe (bob), thinh thoang tu nghieng dau / vay tay / lac coc, chop mat.
 
