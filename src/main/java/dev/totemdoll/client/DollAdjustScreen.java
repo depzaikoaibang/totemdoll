@@ -118,7 +118,7 @@ public class DollAdjustScreen extends Screen {
     private static void reset(String view) {
         DollConfig cfg = DollConfig.get();
         for (F f : F.values()) {
-            float d = f == F.SC ? 1f : 0f;
+            float d = f == F.SC ? 1f : (view.equals("fixed") && f == F.RZ ? 180f : 0f);
             if (!DollConfig.hasHands(view)) { put(cfg.view(view), f, d); continue; }
             if (handMode != 1) put(cfg.view(view + "_r"), f, d);
             if (handMode != 2) put(cfg.view(view + "_l"), f, d);
@@ -157,6 +157,15 @@ public class DollAdjustScreen extends Screen {
             }).bounds(x, y, full, 20).build());
             y += step;
         }
+
+        track(Button.builder(Component.literal("Flip upside down"), b -> {
+            float nv = get(src, F.RZ) + 180f;
+            if (nv > 180f) nv -= 360f;
+            set(key, F.RZ, nv);
+            DollConfig.save();
+            this.minecraft.setScreen(new DollAdjustScreen(back, restoreCamera));
+        }).bounds(x, y, full, 20).build());
+        y += step;
 
         track(new DollConfigScreen.FloatSlider(x, y, colW, 20, "Rotation X", -180f, 180f, get(src, F.RX), 0, f -> set(key, F.RX, f)));
         track(new DollConfigScreen.FloatSlider(x2, y, colW, 20, "Offset X", -16f, 16f, get(src, F.OX), 1, f -> set(key, F.OX, f)));

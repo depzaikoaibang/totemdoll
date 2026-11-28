@@ -40,7 +40,11 @@ public final class DollConfig {
 
     /** Position settings are stored per model, so Foot and Bucket can be tuned separately. */
     public View view(String key) {
-        return views.computeIfAbsent(model + ":" + key, k -> new View());
+        return views.computeIfAbsent(model + ":" + key, k -> {
+            View v = new View();
+            if (key.equals("fixed")) v.rz = 180f;     // totem pop: the doll would be upside down otherwise
+            return v;
+        });
     }
 
     public int modelIndex() {

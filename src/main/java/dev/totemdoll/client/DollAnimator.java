@@ -21,6 +21,9 @@ public final class DollAnimator {
     private static final String BOB = "jmryog", IDLE = "tuqbfp", KEDIP = "new";
     private static final String FALL = "jrnoca", LAND = "vvinnn", EQUIP = "jvvabu", HURT = "ziovgj", RIPPLE = "llaman";
     private static final String HELLO = "yjcpmk";
+    /** Only drops of at least this many blocks get the falling pose, the water splash and the "hello" wave. */
+    private static final float HIGH_FALL = 3.0f;
+    private static final float JUMP_KICK = 20f, LAND_KICK = 26f, SPR_K = 240f, SPR_C = 11f;
     /** Fidget states of the original controller (index = Math.mod(kkvcsy + random(1..4), 5)). */
     private static final String[][] FIDGETS = {{"fdgzhe"}, {"gwsewn"}, {"yjcpmk", "inhsns"}, {"fjxbyn"}, {"bpgepc"}};
     private static final float REST_ARM_X = 78f, REST_ARM_Y = 12f;      // degrees (model space), tune to taste
@@ -63,6 +66,8 @@ public final class DollAnimator {
     private boolean wasHolding, wasAir, still, blinkEnabled = true;
     private int restMode;                 // 0 none, 1 hands on the cup rim, 2 hands on the thighs (Foot models)
     private float airTime, lastAirTime, rippleCooldown, restWeight = 1f;
+    private float fallDist, hs, hv, jumpAmt, helloTimer = -1f;   // hs / hv: spring of the head bob
+    private boolean wasGround = true, wasInWater;
     private Map<String, BoneAnim> pose = new HashMap<>();
     private float blink;
 
@@ -122,6 +127,8 @@ public final class DollAnimator {
         if (lastHealth >= 0f && health < lastHealth - 1e-3f && (hurtLayer == null || hurtLayer.time > 0.49f)) startHurt();
         lastHealth = health;
 
+        boolean air = !onGround;
+        if (air && vy < 0) fallDist += (float) (-vy * dt * 20.0);          // blocks fallen since leaving the ground
         if (onGround) {
             if (wasAir) lastAirTime = airTime;
             airTime = 0f;
@@ -129,17 +136,36 @@ public final class DollAnimator {
             airTime += dt;
         }
         rippleCooldown = Math.max(0f, rippleCooldown - dt);
-        updateFall(dt, onGround, vSpeed, inWater);
-        // liquid ripple only after a real drop (not on every stair step), and not more than once a second
-        if (wasAir && onGround && !inWater && lastAirTime > 0.45f && rippleCooldown <= 0f) {
-            Layer r = layer(RIPPLE, true);
-            if (r != null) {
-                for (Layer old : new ArrayList<>(layers)) if (old.clip == r.clip) layers.remove(old);
-                layers.add(r);
-                rippleCooldown = 1.0f;
+
+        boolean landed = wasAir && onGround;
+        boolean splashed = !wasInWater && inWater;
+        if (wasGround && air && vy > 0.05) hv += JUMP_KICK;                // take-off: the head pops up
+        if (landed || splashed) {
+            if (fallDist >= HIGH_FALL) impact();                           // from high up: squash + splash + hello
+            else if (landed && lastAirTime > 0.2f) {                       // small hop: the head just slams down
+                hv -= LAND_KICK * Math.min(1f, 0.4f + fallDist / HIGH_FALL);
             }
         }
-        wasAir = !onGround;
+        if (onGround || inWater) fallDist = 0f;
+
+        updateFall(dt, onGround, vSpeed, inWater);
+
+        float acc = -SPR_K * hs - SPR_C * hv;                              // damped spring of the head bob
+        hv += acc * dt;
+        hs = Math.max(-2.5f, Math.min(2.5f, hs + hv * dt));
+        float smallAir = (air && !inWater && fallDist < HIGH_FALL) ? 1f : 0f;
+        jumpAmt += (smallAir - jumpAmt) * (1f - (float) Math.exp(-dt * 12f));
+        wasAir = air;
+        wasGround = onGround;
+        wasInWater = inWater;
+
+        if (helloTimer >= 0f) {
+            helloTimer -= dt;
+            if (helloTimer < 0f && (onGround || inWater)) {
+                if (fidState >= 0) endFidget();
+                startFidget(2);                                            // "hello" after a big landing
+            }
+        }
         updateFidget(dt, onGround, fastFall, inWater);
 
         for (Layer l : layers) {
@@ -173,30 +199,34 @@ public final class DollAnimator {
     private void updateFall(float dt, boolean onGround, float vSpeed, boolean inWater) {
         switch (fallState) {
             case 0:
-                // needs ~0.2 s in the air: walking down stairs / small steps must not trigger it
-                if (vSpeed < -0.15f && !inWater && airTime > 0.2f) enterFall();
+                if (!onGround && !inWater && fallDist > HIGH_FALL) enterFall();   // only after falling a few blocks
                 break;
             case 1:
                 fallTime += dt;
-                if (inWater) {
-                    fadeOut(fallLayer, 0.06f, false);
-                    fallState = 0;
-                } else if (onGround) {
-                    if (fallTime > 0.3f) enterLand(1f);                 // real landing: squash
-                    else { fadeOut(fallLayer, 0.12f, false); fallState = 0; }   // tiny drop: just relax
-                } else if (vSpeed >= -0.15f) {
-                    fadeOut(fallLayer, 0.12f, false);                    // slowed down again (rising / water)
+                if (onGround || inWater || vSpeed >= -0.15f) {
+                    fadeOut(fallLayer, 0.12f, false);
                     fallState = 0;
                 }
                 break;
             default:
-                if (inWater) {
-                    fadeOut(landLayer, 0.16f, false);
-                    fallState = 0;
-                } else if (!onGround && vSpeed < -0.15f) enterFall();
-                else if (landLayer == null) fallState = 0;
+                if (landLayer == null) fallState = 0;
+                else if (!onGround && !inWater && fallDist > HIGH_FALL) enterFall();
                 break;
         }
+    }
+
+    /** Big landing on the ground or a splash into water: squash, the pack's water splash, then a "hello". */
+    private void impact() {
+        enterLand(1f);
+        if (rippleCooldown <= 0f) {
+            Layer r = layer(RIPPLE, true);
+            if (r != null) {
+                for (Layer old : new ArrayList<>(layers)) if (old.clip == r.clip) layers.remove(old);
+                layers.add(r);
+                rippleCooldown = 1.0f;
+            }
+        }
+        helloTimer = 0.55f;
     }
 
     private void enterFall() {
@@ -287,6 +317,7 @@ public final class DollAnimator {
             if (w > 0.001f) add(p, l.clip.name, l.time, w, !armsFree(l.clip.name));
         }
         applyRest(p);
+        applyJump(p);
         BoneAnim k = p.get("kedip");
         blink = blinkEnabled ? blinkOf(k) : 0f;
         if (!blinkEnabled && k != null) k.tz = 0.1f;                  // keep the 2D model's eyes open
@@ -309,12 +340,29 @@ public final class DollAnimator {
         float ax, ay, sink;
         if (restMode == 2) { ax = THIGH_ARM_X; ay = THIGH_ARM_Y; sink = 0f; }        // hands on the thighs
         else { ax = REST_ARM_X; ay = REST_ARM_Y; sink = -1.8f; }                       // hands on the cup rim
+        ax -= (restMode == 2 ? 8f : 14f) * jumpAmt;                                    // jumping: hands only dip a little
         BoneAnim root = p.computeIfAbsent("2pgdgld", n -> new BoneAnim());
         root.ty += sink * w;
         BoneAnim ra = p.computeIfAbsent("2pg_rightarm", n -> new BoneAnim());
         ra.rx += ax * w; ra.ry += ay * w;
         BoneAnim la = p.computeIfAbsent("2pg_leftarm", n -> new BoneAnim());
         la.rx += ax * w; la.ry -= ay * w;
+    }
+
+    /** Head pops up when jumping, then drops down like a spring (also a small slam on landing). */
+    private void applyJump(Map<String, BoneAnim> p) {
+        if (still || Math.abs(hs) < 0.001f) return;
+        BoneAnim head = p.computeIfAbsent("2pg_head", n -> new BoneAnim());
+        head.ty += hs;
+        BoneAnim root = p.computeIfAbsent("2pgdgld", n -> new BoneAnim());
+        root.ty += hs * 0.35f;
+    }
+
+    /** For tests / debugging: names of the clips currently playing. */
+    public String active() {
+        StringBuilder sb = new StringBuilder();
+        for (Layer l : layers) sb.append(l.clip.name).append(' ');
+        return sb.toString().trim();
     }
 
     /** The pack's kedip bone sits at z=+0.1 (hidden) and slides to z=-0.02 while the eyes are closed. */

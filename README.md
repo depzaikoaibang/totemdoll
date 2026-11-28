@@ -40,8 +40,12 @@ alex.png hoac steve.png roi thay file (trong jar bang 7-Zip, hoac dung resource 
 
 ## Animation (port tu animation controller cua goi Bedrock)
 - Cam Totem len tay: nho len khoi xo (drssdv), sau ~1.4s vay tay.
-- Roi: vuon nguoi, hai tay gio chu V (khong con cham vao nhau); cham dat: nen xuong roi bat lai.
-  Song nuoc trong coc chi chay khi roi that su (xuong cau thang khong kich hoat).
+- Nhay nhe / xuong cau thang / roi duoi 3 block: chi nhun dau len roi dap xuong nhu lo xo, tay ha xuong mot it
+  (khong thut vao, khong gio len), KHONG co nuoc bat len.
+- Roi tu 3 block tro len (xuong dat hoac xuong nuoc): gio hai tay chu V khi dang roi; cham dat/cham nuoc: nen xuong +
+  nuoc bat len trong coc + vay tay chao (hello).
+- Totem no (totem pop): doll mac dinh duoc xoay 180 do de khong bi nguoc dau (View: Totem Pop / Frame,
+  co nut Flip upside down).
 - Tay luon dat 24/7: o xo/coc chong hai tay len mep, o Foot chong tay len dui. CHI khi roi (gio chu V) va vay tay
   (hello) thi tay roi vi tri nghi, roi quay lai muot (khong tuot ra sau, khong thut vao). Cac animation khac
   (cham dat, cam len, bi thuong, nghieng dau...) khong dong vao tay.
